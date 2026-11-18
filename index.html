@@ -1,0 +1,2250 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CUHK SEEM 2026–27 | 4-Year Interactive Study Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+          colors: {
+            cuhk: {
+              purple: '#6B21A8',
+              purpleDark: '#581C87',
+              gold: '#D97706',
+              goldLight: '#F59E0B',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar & print styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.45); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.7); }
+
+    .drag-over {
+      outline: 2px dashed #7c3aed !important;
+      background-color: rgba(124, 58, 237, 0.07) !important;
+    }
+
+    /* SECTION: mobile-responsive (below lg only; desktop layout untouched) */
+    @media (max-width: 1023.98px) {
+      body[data-mtab="plan"] #course-bank-aside,
+      body[data-mtab="timetable"] #course-bank-aside { display: none; }
+      body[data-mtab="courses"] #plan-right-section { display: none; }
+      body[data-mtab="courses"] #course-bank-aside { max-height: none; }
+      #stats-grid { display: none; }
+      body.stats-open #stats-grid { display: grid; }
+      body:not(.stats-open) #validation-strip { display: none; }
+      #plan-main, #timetable-view { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .print-full { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+      .term-card { break-inside: avoid; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+    }
+  </style>
+  <!-- Supabase SDK for cloud sync -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand / Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-800 via-purple-700 to-amber-500 flex items-center justify-center text-white font-extrabold text-sm shadow-md shrink-0">
+          SEEM
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+              CUHK B.Eng. in Systems Engineering &amp; Engineering Management
+            </h1>
+            <span class="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+              2026–27 Intake
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            Interactive 4-Year Study Scheme Planner • Minimum 75 Major Units
+          </p>
+        </div>
+      </div>
+
+      <!-- Stream Selector & Global Controls -->
+      <div class="flex flex-wrap items-center gap-2 no-print">
+        <!-- Cloud Sync Status -->
+        <span id="cloud-status" title="Supabase cloud sync status"
+          style="font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; white-space: nowrap;">
+          ⏳ 連線中...
+        </span>
+
+        <!-- Stream Selector -->
+        <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
+          <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-2 hidden sm:inline">Stream:</span>
+          <select id="stream-select" onchange="setStream(this.value)"
+            class="bg-white dark:bg-slate-900 text-xs font-semibold text-purple-800 dark:text-purple-300 rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer">
+            <option value="BIS">Business Information Systems (BIS)</option>
+            <option value="DA">Decision Analytics (DA)</option>
+            <option value="GENERAL">No Stream (General SEEM)</option>
+          </select>
+        </div>
+
+        <!-- View Switcher: 4-Year Plan / Weekly Timetable -->
+        <div class="hidden lg:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
+          <button id="view-btn-plan" onclick="setView('plan')"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-700 text-white shadow-sm transition">4-Year Plan</button>
+          <button id="view-btn-timetable" onclick="setView('timetable')"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">Weekly Timetable</button>
+        </div>
+
+        <!-- Summer Term Toggle -->
+        <button id="btn-summer" onclick="toggleSummer()"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+          <span id="summer-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+          Summer Terms
+        </button>
+
+        <!-- Templates Dropdown -->
+        <div class="relative" id="template-dropdown-wrap">
+          <button onclick="toggleTemplateMenu()"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/></svg>
+            Templates
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div id="template-menu" class="hidden absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-40">
+            <button onclick="applyTemplate('official')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
+              <div class="text-xs font-bold text-purple-800 dark:text-purple-300">Load Official Recommended Pattern</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Standard 4-year SEEM sequence tailored to your selected stream</div>
+            </button>
+            <button onclick="applyTemplate('nom2')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 transition mt-1">
+              <div class="text-xs font-bold text-amber-700 dark:text-amber-300">Load No-M1/M2 Start (with ENGG1040)</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Places ENGG1040 in Y1T1 &amp; shifts ENGG1125 to Y1T2 smoothly</div>
+            </button>
+            <div class="border-t border-slate-100 dark:border-slate-800 my-1"></div>
+            <button onclick="promptResetUnitEdits()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 text-xs font-semibold text-amber-700 dark:text-amber-400 transition">
+              Reset All Custom Unit Edits
+            </button>
+            <button onclick="promptClearAll()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 text-xs font-semibold text-rose-600 dark:text-rose-400 transition">
+              Clear All Scheduled Courses
+            </button>
+          </div>
+        </div>
+
+        <!-- Export / Import / Print -->
+        <div class="flex items-center gap-1">
+          <button onclick="exportJSON()" title="Export Plan as JSON"
+            class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3"/></svg>
+          </button>
+          <button onclick="triggerImport()" title="Import JSON Plan"
+            class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 8l-4-4m0 0L8 8m4-4v12"/></svg>
+          </button>
+          <input type="file" id="import-file" accept=".json" class="hidden" onchange="handleImport(event)" />
+          <button onclick="window.print()" title="Print / Save PDF"
+            class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2m-2 0H8v4h8v-4z"/></svg>
+          </button>
+          <button onclick="toggleDarkMode()" title="Toggle Light / Dark Theme"
+            class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+            <svg id="icon-sun" class="w-4 h-4 hidden dark:block text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg id="icon-moon" class="w-4 h-4 block dark:hidden text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- PROGRESS SUMMARY BAR -->
+  <section class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+    <div class="max-w-[1600px] mx-auto">
+      <!-- Mobile collapsed summary bar (lg:hidden) -->
+      <button id="stats-summary-bar" onclick="toggleStats()"
+        class="lg:hidden w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 text-xs font-semibold text-purple-900 dark:text-purple-200">
+        <span class="flex items-center gap-2 min-w-0">
+          <span class="shrink-0">Major Total</span>
+          <span id="stat-mini-major" class="font-bold">0 / 75 u</span>
+          <span id="stat-mini-alerts" class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">✓</span>
+        </span>
+        <span id="stats-toggle-hint" class="text-[11px] text-purple-700 dark:text-purple-300 shrink-0">▾ Details</span>
+      </button>
+      <div id="stats-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-2.5 lg:mt-0">
+        <!-- Overall Major -->
+        <div class="p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-purple-900 dark:text-purple-200">
+            <span>Major Total</span>
+            <span id="stat-major-txt" class="font-bold">0 / 75 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-purple-200/70 dark:bg-purple-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-major" class="h-full bg-purple-700 dark:bg-purple-400 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-raw-txt" class="text-[10px] text-purple-700/80 dark:text-purple-300/80 mt-1">All scheduled: 0 u</div>
+        </div>
+
+        <!-- Faculty Package -->
+        <div class="p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-blue-900 dark:text-blue-200">
+            <span>1. Faculty Pkg</span>
+            <span id="stat-fp-txt" class="font-bold">0 / 9 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-blue-200/70 dark:bg-blue-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-fp" class="h-full bg-blue-600 dark:bg-blue-400 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-fp-sub" class="text-[10px] text-blue-700/80 dark:text-blue-300/80 mt-1">4 courses required</div>
+        </div>
+
+        <!-- Foundation -->
+        <div class="p-2.5 rounded-xl bg-teal-50/80 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-teal-900 dark:text-teal-200">
+            <span>2. Foundation</span>
+            <span id="stat-fd-txt" class="font-bold">0 / 18 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-teal-200/70 dark:bg-teal-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-fd" class="h-full bg-teal-600 dark:bg-teal-400 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-fd-sub" class="text-[10px] text-teal-700/80 dark:text-teal-300/80 mt-1">a:0/5 • b:0/1 • c:0/1</div>
+        </div>
+
+        <!-- Major Required + FYP -->
+        <div class="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-indigo-900 dark:text-indigo-200">
+            <span>3. Major Req + FYP</span>
+            <span id="stat-req-txt" class="font-bold">0 / 30 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-indigo-200/70 dark:bg-indigo-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-req" class="h-full bg-indigo-600 dark:bg-indigo-400 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-req-sub" class="text-[10px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">Core:0/24u • FYP:0/6u</div>
+        </div>
+
+        <!-- Electives & Stream -->
+        <div class="p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+            <span>4. Electives / Stream</span>
+            <span id="stat-el-txt" class="font-bold">0 / 18 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-emerald-200/70 dark:bg-emerald-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-el" class="h-full bg-emerald-600 dark:bg-emerald-400 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-el-sub" class="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 mt-1">Stream courses: 0 / 6</div>
+        </div>
+
+        <!-- Major GPA & Extra Units -->
+        <div class="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60">
+          <div class="flex justify-between items-center text-[11px] font-semibold text-amber-900 dark:text-amber-200">
+            <span>Major GPA Units</span>
+            <span id="stat-mgpa-txt" class="font-bold">0 u</span>
+          </div>
+          <div class="w-full h-1.5 bg-amber-200/70 dark:bg-amber-900 rounded-full mt-1.5 overflow-hidden">
+            <div id="bar-mgpa" class="h-full bg-amber-500 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="stat-extra-sub" class="text-[10px] text-amber-700/80 dark:text-amber-300/80 mt-1">Non-Major/Core: 0 u</div>
+        </div>
+      </div>
+
+      <!-- Smart Validation / Alerts Strip -->
+      <div id="validation-strip" class="mt-2.5 flex flex-wrap items-center gap-2 text-xs"></div>
+    </div>
+  </section>
+
+  <!-- MAIN WORKSPACE: LEFT COURSE BANK + RIGHT 4-YEAR GRID -->
+  <main id="plan-main" class="flex-1 max-w-[1600px] w-full mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+    <!-- LEFT SIDEBAR: CURRICULUM COURSE BANK -->
+    <aside id="course-bank-aside" class="lg:col-span-4 xl:col-span-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:sticky lg:top-[76px] lg:max-h-[calc(100vh-92px)] no-print">
+      <div class="p-3.5 border-b border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between gap-2 mb-2.5">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Course Bank &amp; Checklist</h2>
+          <button onclick="openCustomModal()"
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition flex items-center gap-1">
+            <span>+ Custom / Core</span>
+          </button>
+        </div>
+
+        <!-- Target Term Quick Selector -->
+        <div class="flex items-center gap-2 mb-2.5 bg-slate-50 dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700">
+          <label for="quick-target-term" class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">Click-to-add target:</label>
+          <select id="quick-target-term" onchange="setSelectedTerm(this.value)"
+            class="w-full bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+          </select>
+        </div>
+
+        <!-- Search & Category Filter -->
+        <div class="relative mb-2">
+          <input type="text" id="course-search" oninput="renderCourseBank()" placeholder="Search code or title (e.g. SEEM3430, Data)..."
+            class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-purple-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition" />
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+        </div>
+
+        <div class="flex gap-1 overflow-x-auto pb-1 text-[11px] font-semibold" id="category-pills">
+          <button onclick="setCatFilter('ALL')" data-cat="ALL" class="cat-pill px-2.5 py-1 rounded-lg bg-purple-700 text-white shrink-0">All</button>
+          <button onclick="setCatFilter('FP')" data-cat="FP" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Faculty</button>
+          <button onclick="setCatFilter('FD')" data-cat="FD" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Foundation</button>
+          <button onclick="setCatFilter('REQ')" data-cat="REQ" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Required</button>
+          <button onclick="setCatFilter('STREAM')" data-cat="STREAM" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Stream</button>
+          <button onclick="setCatFilter('ELEC')" data-cat="ELEC" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Electives</button>
+          <button onclick="setCatFilter('EXTRA')" data-cat="EXTRA" class="cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">Core/Minor</button>
+        </div>
+      </div>
+
+      <!-- Scrollable Course List -->
+      <div id="course-bank-list" class="p-3 overflow-y-auto space-y-3 flex-1"></div>
+    </aside>
+
+    <!-- RIGHT MAIN AREA: 4-YEAR SEMESTER GRID -->
+    <section id="plan-right-section" class="lg:col-span-8 xl:col-span-9 print-full space-y-4">
+      <div id="years-grid" class="space-y-4"></div>
+
+      <!-- Legend & Explanatory Notes Footer -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-600 dark:text-slate-400 space-y-2">
+        <div class="flex flex-wrap items-center gap-3 font-semibold text-slate-700 dark:text-slate-300">
+          <span>Category Legend:</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>Faculty Package (9u)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span>Foundation (18u)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>Major Required &amp; FYP (30u)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Stream &amp; Major Electives (18u)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Pre-req / Univ Core / Minor</span>
+        </div>
+        <p class="leading-relaxed">
+          <strong>CUHK SEEM 2026–27 Notes:</strong>
+          (1) <strong>Major GPA</strong> includes ENGG, ESTR, and SEEM courses at 2000+ level plus non-SEEM courses marked with <code class="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">#</code>, excluding Faculty Package and Foundation courses.
+          (2) <strong>ENGG1040</strong> is required prior to <strong>ENGG1125</strong> for JUPAS admittees without HKDSE M1/M2 (unless exempted via Mathematics Placement Test).
+          (3) <strong>CILTHK Full Exemption</strong> is granted upon completing <span class="font-mono text-[11px]">MKTG2010, SEEM2520, SEEM3620/ESTR3514, SEEM4750/ESTR4510</span> plus an FYP in transport/logistics.
+          (4) <strong>Editable Credits:</strong> click any units badge marked <span class="font-mono text-[11px]">✎</span> — in the Course Bank or inside a term — to freely change that course's units. Edited courses are highlighted in amber; use "Reset to Default" in the edit dialog, or "Reset All Custom Unit Edits" in the Templates menu, to restore official values.
+          (5) <strong>Edit Course Info:</strong> click a course title (or the ✎ button on a term card) to rename its code / title / units without deleting it.
+          (6) <strong>Weekly Timetable:</strong> switch views in the top bar; click a block to edit or an empty slot to add a Mon–Fri session with venue. Overlaps are flagged in red.
+          (7) <strong>Smart Paste:</strong> in the Add-Course dialog, paste CUSIS-style text to auto-fill code, units, title and detected class sessions.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <!-- SECTION: weekly-timetable-view -->
+  <section id="timetable-view" class="hidden flex-1 max-w-[1600px] w-full mx-auto px-4 py-4 print-full">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 class="text-sm font-bold text-slate-900 dark:text-white">Weekly Timetable</h2>
+        <select id="tt-term-select" onchange="setSelectedTerm(this.value)"
+          class="bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-purple-800 dark:text-purple-300 rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"></select>
+        <span id="tt-conflict-badge" class="hidden px-2 py-0.5 rounded-lg text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800"></span>
+        <div class="ml-auto flex items-center gap-2 no-print">
+          <span class="text-[11px] text-slate-400 hidden sm:inline">Click a block to edit • click an empty slot to add</span>
+          <button onclick="openSessionModal(null, null, null)"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm transition">+ Add Session</button>
+        </div>
+      </div>
+      <div id="tt-grid-wrap" class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800"></div>
+      <p class="text-[11px] text-slate-400 dark:text-slate-500">Monday–Friday, 08:30–21:30. Overlapping sessions are outlined in red. All sessions are saved to your plan and synced to the cloud.</p>
+    </div>
+  </section>
+
+  <!-- SECTION: mobile-bottom-tabbar -->
+  <nav id="mobile-tabbar"
+    class="lg:hidden fixed bottom-0 inset-x-0 z-40 no-print bg-white/80 dark:bg-slate-900/80 backdrop-blur border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)]">
+    <div class="grid grid-cols-3 max-w-[640px] mx-auto">
+      <button id="mtab-plan" onclick="setMobileTab('plan')"
+        class="flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-bold text-purple-700 dark:text-purple-300">
+        <span class="text-lg leading-none">📅</span><span>4年排課</span>
+      </button>
+      <button id="mtab-timetable" onclick="setMobileTab('timetable')"
+        class="flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        <span class="text-lg leading-none">🕒</span><span>週時間表</span>
+      </button>
+      <button id="mtab-courses" onclick="setMobileTab('courses')"
+        class="flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        <span class="text-lg leading-none">📚</span><span>課程庫</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- CUSTOM / NON-MAJOR COURSE MODAL -->
+  <div id="custom-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">Add Custom / University Core / Minor Course</h3>
+        <button onclick="closeCustomModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+      </div>
+
+      <!-- SECTION: smart-paste -->
+      <div class="mb-3 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+        <div class="flex items-center justify-between gap-2 mb-1.5">
+          <div class="text-[11px] font-bold text-purple-800 dark:text-purple-300">Smart Paste / 一鍵貼上識別</div>
+          <button type="button" onclick="smartPasteClipboard()"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm transition shrink-0">📋 Paste &amp; Auto-Fill</button>
+        </div>
+        <textarea id="smart-paste-input" rows="2" oninput="handleSmartPaste()" onpaste="setTimeout(handleSmartPaste, 0)"
+          placeholder='Paste CUSIS / course text, e.g. "CSCI1510 Computer Principles and C++ 3.00 Mon 10:30-12:15 ERB 407"'
+          class="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+        <div id="smart-paste-preview" class="text-[11px] text-purple-700/90 dark:text-purple-300/90 mt-1 leading-snug"></div>
+        <label id="smart-tt-wrap" class="hidden mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+          <input type="checkbox" id="smart-tt-add" checked class="rounded border-slate-300 dark:border-slate-600 text-purple-700 focus:ring-purple-500" />
+          Also add detected class sessions to this term's Weekly Timetable
+        </label>
+      </div>
+
+      <!-- Quick Presets inside Modal -->
+      <div class="mb-3">
+        <div class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Quick Fill Common CUHK Courses:</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" onclick="fillCustomPreset('ENGG1040','Basic Mathematics for Engineers',3,'Pre-req / Foundation')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 hover:bg-amber-100">ENGG1040 (3u)</button>
+          <button type="button" onclick="fillCustomPreset('UGFH1000','In Dialogue with Humanity',3,'University Core / GE')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">UGFH1000 (3u)</button>
+          <button type="button" onclick="fillCustomPreset('UGFN1000','In Dialogue with Nature',3,'University Core / GE')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">UGFN1000 (3u)</button>
+          <button type="button" onclick="fillCustomPreset('ELTU1001','Foundation English for Univ Studies',3,'University Core / Language')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">ELTU1001 (3u)</button>
+          <button type="button" onclick="fillCustomPreset('CHLT1001','University Chinese I',3,'University Core / Language')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">CHLT1001 (3u)</button>
+          <button type="button" onclick="fillCustomPreset('PHED1000','Physical Education',1,'University Core / PE')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">PHED (1u)</button>
+          <button type="button" onclick="fillCustomPreset('CSCI1510','Computer Principles and C++',3,'CS Minor / Elective')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">CSCI1510 (3u)</button>
+        </div>
+      </div>
+
+      <form id="custom-form" onsubmit="submitCustomCourse(event)" class="space-y-3">
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold mb-1">Course Code *</label>
+            <input type="text" id="cust-code" required placeholder="e.g. UGFH1000"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1">Units *</label>
+            <input type="number" id="cust-units" required min="0" max="24" step="any" value="3"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Course Title *</label>
+          <input type="text" id="cust-title" required placeholder="e.g. In Dialogue with Humanity"
+            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs font-semibold mb-1">Tag / Label</label>
+            <select id="cust-tag"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option value="University Core / GE">University Core / GE</option>
+              <option value="Pre-req / Foundation">Pre-req / Foundation</option>
+              <option value="CS Minor / Minor">CS Minor / Minor</option>
+              <option value="Free Elective / Other">Free Elective / Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1">Add to Term</label>
+            <select id="cust-term"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeCustomModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm">Add to Plan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SECTION: course-info-modal -->
+  <div id="course-info-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">Edit Course Info</h3>
+        <button onclick="closeCourseInfoModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+      </div>
+      <form onsubmit="submitCourseInfo(event)" class="space-y-3">
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold mb-1" for="ci-code">Course Code *</label>
+            <input type="text" id="ci-code" required
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1" for="ci-units">Units *</label>
+            <input type="number" id="ci-units" required min="0" max="24" step="any"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1" for="ci-title">Course Title *</label>
+          <input type="text" id="ci-title" required
+            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1" for="ci-sub">Tag / Group Label</label>
+          <input type="text" id="ci-sub" placeholder="e.g. University Core / GE"
+            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        </div>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">Changes apply everywhere (Course Bank, terms, timetable) and sync to the cloud. Category (Faculty / Foundation / Required / Elective) stays unchanged.</p>
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <button type="button" id="ci-delete-btn" onclick="deleteCustomCourse()"
+            class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition">Delete Course</button>
+          <div class="flex gap-2 ml-auto">
+            <button type="button" id="ci-reset-btn" onclick="resetCourseInfo()"
+              class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 transition">Reset Info</button>
+            <button type="button" onclick="closeCourseInfoModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm">Save Changes</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SECTION: session-modal -->
+  <div id="session-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="session-modal-title" class="text-base font-bold text-slate-900 dark:text-white">Add Class Session</h3>
+        <button onclick="closeSessionModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+      </div>
+      <form onsubmit="submitSession(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1" for="sess-course">Course *</label>
+          <select id="sess-course" required
+            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1.5">Days (Mon–Fri, multi-select for recurring sessions) *</label>
+          <div id="sess-days" class="flex flex-wrap gap-1.5"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-2.5">
+          <div>
+            <label class="block text-xs font-semibold mb-1" for="sess-start">Start *</label>
+            <input type="time" id="sess-start" required min="08:30" max="21:30" step="300"
+              class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1" for="sess-end">End *</label>
+            <input type="time" id="sess-end" required min="08:30" max="21:30" step="300"
+              class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1" for="sess-kind">Type</label>
+            <select id="sess-kind"
+              class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option>Lecture</option>
+              <option>Tutorial</option>
+              <option>Lab</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1" for="sess-location">Location / Venue</label>
+          <input type="text" id="sess-location" placeholder="e.g. ERB 407, LSK LT1"
+            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        </div>
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <button type="button" id="sess-delete-btn" onclick="deleteSession()"
+            class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition">Delete</button>
+          <div class="flex gap-2 ml-auto">
+            <button type="button" onclick="closeSessionModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm">Save Session</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SECTION: credit-editor-modal -->
+  <div id="credit-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-sm w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">Edit Course Units (Credits)</h3>
+        <button onclick="closeCreditModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+      </div>
+      <div class="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
+        <div id="credit-course-code" class="text-sm font-bold text-purple-800 dark:text-purple-300"></div>
+        <div id="credit-course-title" class="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-snug"></div>
+        <div id="credit-default-hint" class="text-[11px] text-slate-400 dark:text-slate-500 mt-1"></div>
+      </div>
+      <form onsubmit="submitCreditEdit(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1" for="credit-units">Units (Credits) *</label>
+          <input type="number" id="credit-units" required min="0" max="24" step="any"
+            class="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 leading-relaxed">Applies everywhere: term &amp; year totals, requirement progress bars and Major GPA units. Saved locally and included in JSON export.</p>
+        </div>
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <button type="button" id="credit-reset-btn" onclick="resetCreditUnits()"
+            class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 transition">Reset to Default</button>
+          <div class="flex gap-2 ml-auto">
+            <button type="button" onclick="closeCreditModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm">Save Units</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION DIALOG MODAL (No browser confirm/alert) -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-sm w-full p-5 shadow-2xl">
+      <h3 id="confirm-title" class="text-base font-bold text-slate-900 dark:text-white mb-1.5">Confirm Action</h3>
+      <p id="confirm-msg" class="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed"></p>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeConfirmModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">Cancel</button>
+        <button id="confirm-ok-btn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden bg-slate-900 dark:bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg border border-slate-700 transition-opacity duration-200 no-print"></div>
+
+  <script>
+    /* ==========================================================================
+       1. OFFICIAL CUHK SEEM (2026-27 INTAKE) CURRICULUM CATALOG
+    ========================================================================== */
+    const CATALOG = [
+      // --- Category 1: Faculty Package (9 units) ---
+      { id: 'ENGG1110', code: 'ENGG1110 / ESTR1002', title: 'Problem Solving By Programming', units: 3, cat: 'FP', sub: 'Faculty Package (All Required)', majorGpa: false, recTerm: 'Y1T1' },
+      { id: 'ENGG1111', code: 'ENGG1111', title: 'Integrated Engineering Laboratory', units: 1, cat: 'FP', sub: 'Faculty Package (All Required)', majorGpa: false, recTerm: 'Y1T1' },
+      { id: 'ENGG1125', code: 'ENGG1125 / ESTR1007', title: 'Single Variable Calculus for Engineers', units: 2, cat: 'FP', sub: 'Faculty Package (All Required)', majorGpa: false, recTerm: 'Y1T1', note: 'Requires HKDSE M1/M2 or ENGG1040 first' },
+      { id: 'ENGG1120', code: 'ENGG1120 / ESTR1005', title: 'Linear Algebra for Engineers', units: 3, cat: 'FP', sub: 'Faculty Package (All Required)', majorGpa: false, recTerm: 'Y1T2' },
+
+      // --- Category 2: Foundation Courses (18 units) ---
+      // Group (a) All required (13 units)
+      { id: 'ENGG1130', code: 'ENGG1130 / ESTR1006', title: 'Multivariable Calculus for Engineers', units: 3, cat: 'FD', group: 'a', sub: 'Foundation Group (a) — All Required', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'ENGG2440', code: 'ENGG2440 / ESTR2004', title: 'Discrete Mathematics for Engineers', units: 3, cat: 'FD', group: 'a', sub: 'Foundation Group (a) — All Required', majorGpa: false, recTerm: 'Y2T1' },
+      { id: 'ENGG2760', code: 'ENGG2760 / ESTR2018', title: 'Probability for Engineers', units: 2, cat: 'FD', group: 'a', sub: 'Foundation Group (a) — All Required', majorGpa: false, recTerm: 'Y2T1' },
+      { id: 'ENGG2780', code: 'ENGG2780 / ESTR2020', title: 'Statistics for Engineers', units: 2, cat: 'FD', group: 'a', sub: 'Foundation Group (a) — All Required', majorGpa: false, recTerm: 'Y2T2' },
+      { id: 'SEEM2440', code: 'SEEM2440 / ESTR2500', title: 'Engineering Economics', units: 3, cat: 'FD', group: 'a', sub: 'Foundation Group (a) — All Required', majorGpa: false, recTerm: 'Y2T1' },
+
+      // Group (b) Programming Course — Pick 1 (3 units)
+      { id: 'CSCI1120', code: 'CSCI1120 / ESTR1100', title: 'Introduction to Computing Using C++', units: 3, cat: 'FD', group: 'b', sub: 'Foundation Group (b) — Pick 1 Programming', majorGpa: false, recTerm: 'Y2T1' },
+      { id: 'CSCI1130', code: 'CSCI1130 / ESTR1102', title: 'Introduction to Computing Using Java', units: 3, cat: 'FD', group: 'b', sub: 'Foundation Group (b) — Pick 1 Programming', majorGpa: false, recTerm: 'Y2T1' },
+
+      // Group (c) Other Courses — Pick 1 (2–3 units)
+      { id: 'SEEM2460', code: 'SEEM2460 / ESTR2540', title: 'Introduction to Data Science (Recommended)', units: 3, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'ENGG1310', code: 'ENGG1310 / ESTR1003', title: 'Engineering Physics: Electromagnetics, Optics & Modern Physics', units: 3, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'PHYS1110', code: 'PHYS1110', title: 'Engineering Physics: Mechanics & Thermodynamics', units: 3, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'PHYS1003', code: 'PHYS1003', title: 'General Physics for Engineers', units: 3, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'ENGG2720', code: 'ENGG2720 / ESTR2014', title: 'Complex Variables for Engineers', units: 2, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+      { id: 'ENGG2740', code: 'ENGG2740 / ESTR2016', title: 'Differential Equations for Engineers', units: 2, cat: 'FD', group: 'c', sub: 'Foundation Group (c) — Pick 1 Course', majorGpa: false, recTerm: 'Y1T2' },
+
+      // --- Category 3: Major Required Courses (30 units) ---
+      // Group (a) Core Required (24 units)
+      { id: 'CSCI2040', code: 'CSCI2040#', title: 'Introduction to Python', units: 2, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y3T1' },
+      { id: 'CSCI2100', code: 'CSCI2100# / ESTR2102', title: 'Data Structures', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y2T2' },
+      { id: 'SEEM2420', code: 'SEEM2420', title: 'Operations Research I', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y2T2' },
+      { id: 'SEEM2602', code: 'SEEM2602', title: 'Systems Engineering Practicum', units: 1, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y2T2' },
+      { id: 'SEEM3410', code: 'SEEM3410', title: 'System Modeling and Simulation', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y3T1' },
+      { id: 'SEEM3440', code: 'SEEM3440 / ESTR3500', title: 'Operations Research II', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y3T1' },
+      { id: 'SEEM3450', code: 'SEEM3450 / ESTR3502', title: 'Engineering Innovation and Entrepreneurship', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y4T2' },
+      { id: 'SEEM3550', code: 'SEEM3550 / ESTR3506', title: 'Fundamentals in Information Systems', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y3T2' },
+      { id: 'SEEM3650', code: 'SEEM3650 / ESTR3516', title: 'Fundamentals in Decision and Data Analytics', units: 3, cat: 'REQ', group: 'core', sub: 'Major Required — Core (24 units)', majorGpa: true, recTerm: 'Y3T2' },
+      // Group (b) Research Component (6 units)
+      { id: 'SEEM4998', code: 'SEEM4998', title: 'Final Year Project I', units: 3, cat: 'REQ', group: 'fyp', sub: 'Major Required — Research Component (6 units)', majorGpa: true, recTerm: 'Y4T1' },
+      { id: 'SEEM4999', code: 'SEEM4999', title: 'Final Year Project II', units: 3, cat: 'REQ', group: 'fyp', sub: 'Major Required — Research Component (6 units)', majorGpa: true, recTerm: 'Y4T2' },
+
+      // --- Category 4: Elective Courses & Streams (18 units / >= 6 courses) ---
+      // BIS Required
+      { id: 'SEEM3430', code: 'SEEM3430', title: 'Information Systems Analysis and Design', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: ['BIS'], sub: 'BIS Stream Required / Major Elective', majorGpa: true, recTerm: 'Y3T1' },
+      { id: 'SEEM4540', code: 'SEEM4540', title: 'Open Systems for E-Commerce', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: ['BIS'], sub: 'BIS Stream Required / Major Elective', majorGpa: true, recTerm: 'Y4T1' },
+
+      // DA Required
+      { id: 'SEEM3620', code: 'SEEM3620 / ESTR3514', title: 'Introduction to Logistics and Supply Chain Management', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: ['DA'], sub: 'DA Stream Required / Major Elective', majorGpa: true, recTerm: 'Y3T1' },
+      { id: 'SEEM4760', code: 'SEEM4760 / ESTR4512', title: 'Stochastic Models for Decision Analytics', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: ['DA'], sub: 'DA Stream Required / Major Elective', majorGpa: true, recTerm: 'Y4T1' },
+
+      // Shared BIS & DA Electives
+      { id: 'ENGG1820', code: 'ENGG1820', title: 'Engineering Internship', units: 1, cat: 'ELEC', streams: ['BIS', 'DA'], streamReq: [], sub: 'Major Elective (BIS & DA)', majorGpa: false },
+      { id: 'FTEC4005', code: 'FTEC4005#', title: 'Financial Informatics', units: 3, cat: 'ELEC', streams: ['BIS', 'DA'], streamReq: [], sub: 'Major Elective (BIS & DA)', majorGpa: true },
+      { id: 'SEEM4630', code: 'SEEM4630', title: 'E-Commerce Data Mining', units: 3, cat: 'ELEC', streams: ['BIS', 'DA'], streamReq: [], sub: 'Major Elective (BIS & DA)', majorGpa: true, recTerm: 'Y4T1' },
+
+      // BIS Electives
+      { id: 'AIST3510', code: 'AIST3510# / SEEM3510', title: 'Human and Computer Interaction', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true, recTerm: 'Y3T2' },
+      { id: 'CSCI4140', code: 'CSCI4140#', title: 'Open-Source Software Project Development', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'FTEC4001', code: 'FTEC4001#', title: 'Advanced Database Technologies', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'FTEC4007', code: 'FTEC4007#', title: 'Introduction to Blockchain and Distributed Ledger Technology', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'IERG4210', code: 'IERG4210#', title: 'Web Programming and Security', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'SEEM3460', code: 'SEEM3460 / ESTR3504', title: 'Computer Processing Concepts', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'SEEM3490', code: 'SEEM3490', title: 'Information Systems Management', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true, recTerm: 'Y4T2' },
+      { id: 'SEEM3680', code: 'SEEM3680 / ESTR3512', title: 'Technology, Consulting and Analytics in Practice', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true },
+      { id: 'SEEM4570', code: 'SEEM4570', title: 'System Design and Implementation', units: 3, cat: 'ELEC', streams: ['BIS'], streamReq: [], sub: 'BIS Stream Elective', majorGpa: true, recTerm: 'Y4T2' },
+
+      // DA Electives
+      { id: 'FTEC3001', code: 'FTEC3001#', title: 'Financial Engineering', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'FTEC4002', code: 'FTEC4002#', title: 'Behavioral Analytics', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'MKTG2010', code: 'MKTG2010#', title: 'Marketing Management', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective (CILTHK)', majorGpa: true },
+      { id: 'SEEM2520', code: 'SEEM2520', title: 'Fundamentals in Financial Engineering', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective (CILTHK)', majorGpa: true },
+      { id: 'SEEM3500', code: 'SEEM3500', title: 'Quality Control and Management', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'SEEM3580', code: 'SEEM3580', title: 'Risk Analysis for Financial Engineering', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'SEEM3590', code: 'SEEM3590 / ESTR3509', title: 'Investment Science', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'SEEM3630', code: 'SEEM3630 / ESTR3510', title: 'Service Management', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true, recTerm: 'Y3T2' },
+      { id: 'SEEM4670', code: 'SEEM4670', title: 'Service Systems', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'SEEM4720', code: 'SEEM4720 / ESTR4506', title: 'Computational Finance', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true },
+      { id: 'SEEM4730', code: 'SEEM4730 / ESTR4508', title: 'Data Analytics Models and Methods for Financial Engineering and Fintech', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective', majorGpa: true, recTerm: 'Y4T2' },
+      { id: 'SEEM4750', code: 'SEEM4750 / ESTR4510', title: 'Advances in Logistics and Supply Chain Management', units: 3, cat: 'ELEC', streams: ['DA'], streamReq: [], sub: 'DA Stream Elective (CILTHK)', majorGpa: true, recTerm: 'Y4T2' },
+
+      // General Major Elective
+      { id: 'SEEM3470', code: 'SEEM3470', title: 'Dynamic Optimization and Applications', units: 3, cat: 'ELEC', streams: [], streamReq: [], sub: 'Major Elective (Course List)', majorGpa: true },
+
+      // --- Built-in Non-Major / Pre-req / University Core Presets ---
+      { id: 'ENGG1040', code: 'ENGG1040', title: 'Basic Mathematics for Engineers (Pre-req if no M1/M2)', units: 3, cat: 'EXTRA', sub: 'Pre-req / Foundation', majorGpa: false },
+      { id: 'UGFH1000', code: 'UGFH1000', title: 'In Dialogue with Humanity', units: 3, cat: 'EXTRA', sub: 'University Core / GE', majorGpa: false },
+      { id: 'UGFN1000', code: 'UGFN1000', title: 'In Dialogue with Nature', units: 3, cat: 'EXTRA', sub: 'University Core / GE', majorGpa: false },
+      { id: 'ELTU1001', code: 'ELTU1001', title: 'Foundation English for University Studies', units: 3, cat: 'EXTRA', sub: 'University Core / Language', majorGpa: false },
+      { id: 'CHLT1001', code: 'CHLT1001', title: 'University Chinese I', units: 3, cat: 'EXTRA', sub: 'University Core / Language', majorGpa: false },
+      { id: 'PHED1000', code: 'PHED1000', title: 'Required Physical Education', units: 1, cat: 'EXTRA', sub: 'University Core / PE', majorGpa: false },
+
+      // --- User-added courses preserved from live plan (2026-11) ---
+      { id: 'GECC1130', code: 'GECC1130', title: 'Idea of a University', units: 2, cat: 'EXTRA', sub: 'University Core / GE', majorGpa: false },
+      { id: 'GECC1132', code: 'GECC1132', title: 'Learning through Serving: STOT', units: 1, cat: 'EXTRA', sub: 'University Core / GE', majorGpa: false },
+      { id: 'ENGG1004', code: 'ENGG1004', title: 'Digit. Lit. & Comp. Thinking-R', units: 3, cat: 'EXTRA', sub: 'University Core / GE', majorGpa: false },
+      { id: 'ECON1101', code: 'ECON1101', title: 'Mathematical Methods in Eco', units: 2, cat: 'EXTRA', sub: 'Free Elective / Other', majorGpa: false },
+    ];
+
+    // Seed data from the user's live browser plan (screenshot backup).
+    // Only applied when local/cloud storage is empty; never overwrites existing saved data.
+    const SEED_UNIT_OVERRIDES = { 'ENGG1111': 0 };
+    const SEED_Y1T1_IDS = ['ENGG1111', 'ENGG1110', 'GECC1130', 'CHLT1001', 'PHED1000', 'ENGG1040', 'GECC1132', 'ENGG1004', 'ECON1101'];
+
+    const TERMS = [
+      { id: 'Y1T1', year: 1, label: 'Year 1 • Term 1', isSummer: false },
+      { id: 'Y1T2', year: 1, label: 'Year 1 • Term 2', isSummer: false },
+      { id: 'Y1S',  year: 1, label: 'Year 1 • Summer', isSummer: true },
+      { id: 'Y2T1', year: 2, label: 'Year 2 • Term 1', isSummer: false },
+      { id: 'Y2T2', year: 2, label: 'Year 2 • Term 2', isSummer: false },
+      { id: 'Y2S',  year: 2, label: 'Year 2 • Summer', isSummer: true },
+      { id: 'Y3T1', year: 3, label: 'Year 3 • Term 1', isSummer: false },
+      { id: 'Y3T2', year: 3, label: 'Year 3 • Term 2', isSummer: false },
+      { id: 'Y3S',  year: 3, label: 'Year 3 • Summer', isSummer: true },
+      { id: 'Y4T1', year: 4, label: 'Year 4 • Term 1', isSummer: false },
+      { id: 'Y4T2', year: 4, label: 'Year 4 • Term 2', isSummer: false },
+      { id: 'Y4S',  year: 4, label: 'Year 4 • Summer', isSummer: true },
+    ];
+
+    const STORAGE_KEY = 'cuhk_seem_planner_2026_v1';
+
+    /* ==========================================================================
+       1b. SUPABASE CLOUD SYNC (auto background save + load on boot)
+    ========================================================================== */
+    const SUPABASE_URL = 'https://dcpoaozthiidkfcybkve.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_C2c8Rg-ovZ63ckFKoGi5kQ_FW8rWftN';
+    const PLAN_ID = 'wilson_seem_plan';
+    // Guard: if the CDN script failed to load (offline), keep the app fully usable locally
+    const db = (window.supabase && window.supabase.createClient)
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+      : null;
+
+    function setCloudStatus(text, color = '#94a3b8') {
+      const el = document.getElementById('cloud-status');
+      if (el) {
+        el.textContent = text;
+        el.style.color = color;
+      }
+    }
+
+    // Debounced cloud save: uploads 0.8s after the last change to avoid request spam while dragging
+    let saveTimer = null;
+    function saveToCloud(stateObj) {
+      if (!db) { setCloudStatus('⚠️ 離線模式', '#f87171'); return; }
+      setCloudStatus('⏳ 同步中...', '#fbbf24');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        try {
+          const { error } = await db
+            .from('study_plans')
+            .upsert({
+              id: PLAN_ID,
+              plan_data: stateObj,
+              updated_at: new Date().toISOString()
+            });
+          if (error) {
+            console.error('Supabase save failed:', error);
+            setCloudStatus('⚠️ 雲端儲存失敗', '#f87171');
+          } else {
+            setCloudStatus('☁️ 已同步至雲端', '#34d399');
+          }
+        } catch (err) {
+          console.error('Supabase save failed:', err);
+          setCloudStatus('⚠️ 雲端儲存失敗', '#f87171');
+        }
+      }, 800);
+    }
+
+    async function loadFromCloud() {
+      if (!db) { setCloudStatus('⚠️ 離線模式', '#f87171'); return null; }
+      try {
+        const { data, error } = await db
+          .from('study_plans')
+          .select('plan_data')
+          .eq('id', PLAN_ID)
+          .maybeSingle();
+        if (error) {
+          console.error('Supabase load failed:', error);
+          setCloudStatus('⚠️ 離線模式', '#f87171');
+          return null;
+        }
+        setCloudStatus('☁️ 已同步至雲端', '#34d399');
+        return data ? data.plan_data : null;
+      } catch (err) {
+        console.error('Supabase load failed:', err);
+        setCloudStatus('⚠️ 離線模式', '#f87171');
+        return null;
+      }
+    }
+
+    /* ==========================================================================
+       2. APPLICATION STATE & PERSISTENCE
+    ========================================================================== */
+    let state = {
+      stream: 'BIS',
+      showSummer: false,
+      darkMode: false,
+      selectedTerm: 'Y1T1',
+      catFilter: 'ALL',
+      schedule: {},      // { Y1T1: ['ENGG1110', ...], ... }
+      customCourses: [], // [{ id, code, title, units, cat: 'EXTRA', sub, majorGpa: false }]
+      unitOverrides: {}, // { courseId: customUnits } — user-edited credits overriding catalog defaults
+      infoOverrides: {}, // { courseId: { code?, title?, sub? } } — user-edited course info
+      timetable: {},     // { termId: [{ id, courseId, day(0-4), start:'HH:MM', end:'HH:MM', location, kind }] }
+      view: 'plan',      // 'plan' | 'timetable' (desktop view switcher)
+      mobileTab: 'plan', // 'plan' | 'timetable' | 'courses' (mobile bottom tab bar)
+    };
+
+    function initEmptySchedule() {
+      const s = {};
+      TERMS.forEach(t => s[t.id] = []);
+      return s;
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state = {
+            ...state,
+            ...parsed,
+            schedule: { ...initEmptySchedule(), ...(parsed.schedule || {}) },
+            customCourses: Array.isArray(parsed.customCourses) ? parsed.customCourses : [],
+            unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
+            infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
+            timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+          };
+        } else {
+          // First-time visit: load Official Recommended Pattern so user starts with an actionable plan
+          state.schedule = buildRecommendedSchedule('BIS', false);
+        }
+      } catch (e) {
+        state.schedule = buildRecommendedSchedule('BIS', false);
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Could not save to localStorage', e);
+      }
+      saveToCloud(state); // auto background sync to Supabase
+    }
+
+    function getAllCourses() {
+      const overrides = state.unitOverrides || {};
+      const info = state.infoOverrides || {};
+      return [...CATALOG, ...state.customCourses].map(c => {
+        let out = c;
+        if (Object.prototype.hasOwnProperty.call(overrides, c.id)) {
+          out = { ...out, units: overrides[c.id], unitsEdited: true, defaultUnits: c.units };
+        }
+        const io = info[c.id];
+        if (io && typeof io === 'object') {
+          out = { ...out, infoEdited: true };
+          if (typeof io.code === 'string' && io.code) out.code = io.code;
+          if (typeof io.title === 'string' && io.title) out.title = io.title;
+          if (typeof io.sub === 'string' && io.sub) out.sub = io.sub;
+        }
+        return out;
+      });
+    }
+
+    function getCourseById(id) {
+      return getAllCourses().find(c => c.id === id) || null;
+    }
+
+    function getBaseCourseById(id) {
+      return CATALOG.find(c => c.id === id) || state.customCourses.find(c => c.id === id) || null;
+    }
+
+    function findCourseTerm(courseId) {
+      for (const t of TERMS) {
+        if ((state.schedule[t.id] || []).includes(courseId)) return t.id;
+      }
+      return null;
+    }
+
+    /* ==========================================================================
+       3. RECOMMENDED TEMPLATES (Page 4 of CUHK SEEM PDF)
+    ========================================================================== */
+    function buildRecommendedSchedule(stream, noM2) {
+      const s = initEmptySchedule();
+
+      // Year 1 Term 1 & Term 2
+      if (noM2) {
+        s.Y1T1 = ['ENGG1040', 'ENGG1110', 'ENGG1111'];
+        s.Y1T2 = ['ENGG1125', 'ENGG1120', 'ENGG1130', 'SEEM2460'];
+      } else {
+        s.Y1T1 = ['ENGG1110', 'ENGG1111', 'ENGG1125'];
+        s.Y1T2 = ['ENGG1120', 'ENGG1130', 'SEEM2460'];
+      }
+
+      // Year 2
+      s.Y2T1 = ['CSCI1120', 'ENGG2440', 'ENGG2760', 'SEEM2440'];
+      s.Y2T2 = ['CSCI2100', 'ENGG2780', 'SEEM2420', 'SEEM2602'];
+
+      // Year 3 & Year 4 tailored by Stream
+      if (stream === 'BIS') {
+        s.Y3T1 = ['CSCI2040', 'SEEM3410', 'SEEM3440', 'SEEM3430'];
+        s.Y3T2 = ['SEEM3550', 'SEEM3650', 'AIST3510'];
+        s.Y4T1 = ['SEEM4998', 'SEEM4540', 'SEEM4630'];
+        s.Y4T2 = ['SEEM3450', 'SEEM4999', 'SEEM3490', 'SEEM4570'];
+      } else if (stream === 'DA') {
+        s.Y3T1 = ['CSCI2040', 'SEEM3410', 'SEEM3440', 'SEEM3620'];
+        s.Y3T2 = ['SEEM3550', 'SEEM3650', 'SEEM3630'];
+        s.Y4T1 = ['SEEM4998', 'SEEM4760', 'SEEM4630'];
+        s.Y4T2 = ['SEEM3450', 'SEEM4999', 'SEEM4730', 'SEEM4750'];
+      } else {
+        // General SEEM mix
+        s.Y3T1 = ['CSCI2040', 'SEEM3410', 'SEEM3440', 'SEEM3430'];
+        s.Y3T2 = ['SEEM3550', 'SEEM3650', 'SEEM3630'];
+        s.Y4T1 = ['SEEM4998', 'SEEM3620', 'SEEM4630'];
+        s.Y4T2 = ['SEEM3450', 'SEEM4999', 'SEEM3490', 'SEEM4730'];
+      }
+      return s;
+    }
+
+    function applyTemplate(type) {
+      document.getElementById('template-menu').classList.add('hidden');
+      const hasExisting = Object.values(state.schedule).some(arr => arr.length > 0);
+      const exec = () => {
+        state.schedule = buildRecommendedSchedule(state.stream, type === 'nom2');
+        saveState();
+        renderAll();
+        showToast(type === 'nom2'
+          ? 'Loaded No-M1/M2 pattern (ENGG1040 in Y1T1, ENGG1125 in Y1T2).'
+          : `Loaded Official Recommended Pattern (${state.stream}).`);
+      };
+      if (hasExisting) {
+        openConfirmModal(
+          'Replace Current Schedule?',
+          'Loading this template will replace your currently scheduled courses across all terms.',
+          exec
+        );
+      } else {
+        exec();
+      }
+    }
+
+    function promptClearAll() {
+      document.getElementById('template-menu').classList.add('hidden');
+      openConfirmModal(
+        'Clear All Terms?',
+        'This will remove all courses from Year 1 to Year 4 so you can build from scratch.',
+        () => {
+          state.schedule = initEmptySchedule();
+          saveState();
+          renderAll();
+          showToast('All terms cleared.');
+        }
+      );
+    }
+
+    /* ==========================================================================
+       4. PROGRESS & CURRICULUM VALIDATION ENGINE
+    ========================================================================== */
+    function computeStats() {
+      const scheduledIds = Object.values(state.schedule).flat();
+      const courses = scheduledIds.map(getCourseById).filter(Boolean);
+
+      let rawTotalUnits = 0;
+      let fpUnits = 0, fpCount = 0;
+      let fdGroupAUnits = 0, fdGroupACount = 0;
+      let fdGroupBUnits = 0, fdGroupBCount = 0;
+      let fdGroupCUnits = 0, fdGroupCCount = 0;
+      let reqCoreUnits = 0, reqFypUnits = 0;
+      let elecUnits = 0, elecCount = 0;
+      let streamCount = 0;
+      let streamReqMet = [];
+      let majorGpaUnits = 0;
+      let extraUnits = 0;
+
+      courses.forEach(c => {
+        rawTotalUnits += c.units;
+        if (c.majorGpa) majorGpaUnits += c.units;
+
+        if (c.cat === 'FP') {
+          fpUnits += c.units;
+          fpCount++;
+        } else if (c.cat === 'FD') {
+          if (c.group === 'a') { fdGroupAUnits += c.units; fdGroupACount++; }
+          if (c.group === 'b') { fdGroupBUnits += c.units; fdGroupBCount++; }
+          if (c.group === 'c') { fdGroupCUnits += c.units; fdGroupCCount++; }
+        } else if (c.cat === 'REQ') {
+          if (c.group === 'core') reqCoreUnits += c.units;
+          if (c.group === 'fyp') reqFypUnits += c.units;
+        } else if (c.cat === 'ELEC') {
+          elecUnits += c.units;
+          elecCount++;
+          if (state.stream !== 'GENERAL' && Array.isArray(c.streams) && c.streams.includes(state.stream)) {
+            streamCount++;
+          }
+          if (state.stream !== 'GENERAL' && Array.isArray(c.streamReq) && c.streamReq.includes(state.stream)) {
+            streamReqMet.push(c.id);
+          }
+        } else {
+          extraUnits += c.units;
+        }
+      });
+
+      // Foundation counted units: cap Group (b) at 1 course (3u) and Group (c) at 1 course (max 3u, minimum 18u total)
+      const fdRawUnits = fdGroupAUnits + fdGroupBUnits + fdGroupCUnits;
+      const fdCountedUnits = Math.min(18, fdRawUnits);
+      const reqUnits = reqCoreUnits + reqFypUnits;
+
+      // Major counted units toward 75-unit graduation minimum
+      const majorCountedUnits = Math.min(9, fpUnits) + fdCountedUnits + Math.min(30, reqUnits) + elecUnits;
+
+      // Prerequisite & Sequence Checks
+      const alerts = [];
+      const termIndex = id => TERMS.findIndex(t => t.id === id);
+
+      const t1040 = findCourseTerm('ENGG1040');
+      const t1125 = findCourseTerm('ENGG1125');
+      if (t1040 && t1125 && termIndex(t1040) >= termIndex(t1125)) {
+        alerts.push({ type: 'warn', text: 'ENGG1040 must be taken in an earlier term than ENGG1125.' });
+      }
+
+      const t1125_2 = findCourseTerm('ENGG1125');
+      const t1130 = findCourseTerm('ENGG1130');
+      if (t1125_2 && t1130 && termIndex(t1125_2) >= termIndex(t1130)) {
+        alerts.push({ type: 'info', text: 'Note: ENGG1125 is a prerequisite/co-requisite for ENGG1130.' });
+      }
+
+      const t4998 = findCourseTerm('SEEM4998');
+      const t4999 = findCourseTerm('SEEM4999');
+      if (t4998 && t4999 && termIndex(t4998) >= termIndex(t4999)) {
+        alerts.push({ type: 'warn', text: 'SEEM4998 (FYP I) should be scheduled before SEEM4999 (FYP II).' });
+      }
+
+      if (fdGroupBCount > 1) {
+        alerts.push({ type: 'info', text: `You selected ${fdGroupBCount} Programming courses in Group (b); only 1 is required.` });
+      }
+      if (fdGroupCCount > 1) {
+        alerts.push({ type: 'info', text: `You selected ${fdGroupCCount} courses in Foundation Group (c); only 1 is required.` });
+      }
+
+      // Stream checks
+      const requiredStreamIds = state.stream === 'BIS' ? ['SEEM3430', 'SEEM4540']
+                              : state.stream === 'DA'  ? ['SEEM3620', 'SEEM4760'] : [];
+      const missingStreamReq = requiredStreamIds.filter(id => !streamReqMet.includes(id));
+      if (state.stream !== 'GENERAL' && missingStreamReq.length > 0) {
+        alerts.push({ type: 'warn', text: `${state.stream} Stream requires: ${missingStreamReq.join(' & ')}.` });
+      }
+      if (state.stream !== 'GENERAL' && streamCount < 6) {
+        alerts.push({ type: 'info', text: `${state.stream} Stream needs ≥ 6 stream courses (${streamCount}/6 scheduled).` });
+      }
+
+      return {
+        rawTotalUnits,
+        majorCountedUnits,
+        fpUnits, fpCount,
+        fdRawUnits, fdCountedUnits, fdGroupACount, fdGroupBCount, fdGroupCCount,
+        reqUnits, reqCoreUnits, reqFypUnits,
+        elecUnits, elecCount, streamCount,
+        majorGpaUnits, extraUnits,
+        alerts
+      };
+    }
+
+    /* ==========================================================================
+       5. RENDERING FUNCTIONS
+    ========================================================================== */
+    function catBadgeStyle(cat) {
+      switch (cat) {
+        case 'FP':   return { dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800', label: 'Faculty' };
+        case 'FD':   return { dot: 'bg-teal-500',    badge: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800', label: 'Foundation' };
+        case 'REQ':  return { dot: 'bg-indigo-500',  badge: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800', label: 'Required' };
+        case 'ELEC': return { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800', label: 'Elective' };
+        default:     return { dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800', label: 'Core/Other' };
+      }
+    }
+
+    function renderStats() {
+      const st = computeStats();
+      const pct = (v, max) => Math.min(100, Math.round((v / max) * 100));
+
+      document.getElementById('stat-major-txt').textContent = `${st.majorCountedUnits} / 75 u`;
+      document.getElementById('bar-major').style.width = `${pct(st.majorCountedUnits, 75)}%`;
+      document.getElementById('stat-raw-txt').textContent = `All scheduled: ${st.rawTotalUnits} u`;
+
+      document.getElementById('stat-fp-txt').textContent = `${st.fpUnits} / 9 u`;
+      document.getElementById('bar-fp').style.width = `${pct(st.fpUnits, 9)}%`;
+      document.getElementById('stat-fp-sub').textContent = `${st.fpCount} / 4 courses`;
+
+      document.getElementById('stat-fd-txt').textContent = `${st.fdRawUnits} / 18 u`;
+      document.getElementById('bar-fd').style.width = `${pct(st.fdCountedUnits, 18)}%`;
+      document.getElementById('stat-fd-sub').textContent = `a:${st.fdGroupACount}/5 • b:${st.fdGroupBCount}/1 • c:${st.fdGroupCCount}/1`;
+
+      document.getElementById('stat-req-txt').textContent = `${st.reqUnits} / 30 u`;
+      document.getElementById('bar-req').style.width = `${pct(st.reqUnits, 30)}%`;
+      document.getElementById('stat-req-sub').textContent = `Core:${st.reqCoreUnits}/24u • FYP:${st.reqFypUnits}/6u`;
+
+      document.getElementById('stat-el-txt').textContent = `${st.elecUnits} / 18 u`;
+      document.getElementById('bar-el').style.width = `${pct(st.elecUnits, 18)}%`;
+      document.getElementById('stat-el-sub').textContent = state.stream === 'GENERAL'
+        ? `${st.elecCount} elective courses`
+        : `${state.stream} courses: ${st.streamCount} / 6`;
+
+      document.getElementById('stat-mgpa-txt').textContent = `${st.majorGpaUnits} u`;
+      document.getElementById('bar-mgpa').style.width = `${pct(st.majorGpaUnits, 48)}%`;
+      document.getElementById('stat-extra-sub').textContent = `Non-Major/Core: ${st.extraUnits} u`;
+
+      // Mobile mini summary bar
+      const miniMajor = document.getElementById('stat-mini-major');
+      if (miniMajor) miniMajor.textContent = `${st.majorCountedUnits} / 75 u`;
+      const miniAlerts = document.getElementById('stat-mini-alerts');
+      if (miniAlerts) {
+        if (st.alerts.length > 0) {
+          miniAlerts.textContent = `⚠ ${st.alerts.length}`;
+          miniAlerts.className = 'px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300';
+        } else {
+          miniAlerts.textContent = '✓';
+          miniAlerts.className = 'px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300';
+        }
+      }
+
+      // Validation Strip
+      const strip = document.getElementById('validation-strip');
+      if (st.alerts.length === 0 && st.majorCountedUnits >= 75) {
+        strip.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold">
+          ✓ All 75 Major units &amp; ${state.stream} stream requirements satisfied!
+        </span>`;
+      } else {
+        strip.innerHTML = st.alerts.map(a => {
+          const cls = a.type === 'warn'
+            ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+          return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border ${cls} font-medium">${a.type === 'warn' ? '⚠' : 'ℹ'} ${a.text}</span>`;
+        }).join('');
+      }
+    }
+
+    function renderTermDropdowns() {
+      const visibleTerms = TERMS.filter(t => !t.isSummer || state.showSummer);
+      if (!visibleTerms.some(t => t.id === state.selectedTerm)) {
+        state.selectedTerm = 'Y1T1';
+      }
+      const opts = visibleTerms.map(t => `<option value="${t.id}" ${t.id === state.selectedTerm ? 'selected' : ''}>${t.label}</option>`).join('');
+      document.getElementById('quick-target-term').innerHTML = opts;
+      document.getElementById('cust-term').innerHTML = opts;
+    }
+
+    function renderCourseBank() {
+      const query = document.getElementById('course-search').value.trim().toLowerCase();
+      const all = getAllCourses();
+
+      const filtered = all.filter(c => {
+        if (state.catFilter === 'STREAM') {
+          if (c.cat !== 'ELEC') return false;
+          if (state.stream !== 'GENERAL' && !(c.streams && c.streams.includes(state.stream))) return false;
+        } else if (state.catFilter !== 'ALL' && c.cat !== state.catFilter) {
+          return false;
+        }
+        if (!query) return true;
+        return c.code.toLowerCase().includes(query) || c.title.toLowerCase().includes(query) || (c.sub && c.sub.toLowerCase().includes(query));
+      });
+
+      // Group by sub-category
+      const groups = {};
+      filtered.forEach(c => {
+        const key = c.sub || 'Other Courses';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(c);
+      });
+
+      const container = document.getElementById('course-bank-list');
+      if (Object.keys(groups).length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-xs text-slate-400">No matching courses found. Try clearing your filter or add a custom course.</div>`;
+        return;
+      }
+
+      container.innerHTML = Object.entries(groups).map(([groupTitle, items]) => {
+        const cards = items.map(c => {
+          const scheduledTerm = findCourseTerm(c.id);
+          const style = catBadgeStyle(c.cat);
+          const isStreamReq = state.stream !== 'GENERAL' && c.streamReq && c.streamReq.includes(state.stream);
+          const isInSelectedStream = state.stream !== 'GENERAL' && c.streams && c.streams.includes(state.stream);
+
+          return `
+            <div draggable="true"
+              ondragstart="onDragStart(event, '${c.id}', null)"
+              onclick="toggleCourseInSelectedTerm('${c.id}')"
+              class="group p-2.5 rounded-xl border transition cursor-pointer select-none ${
+                scheduledTerm
+                  ? 'bg-slate-50/90 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 opacity-85'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-sm'
+              }">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="w-2 h-2 rounded-full ${style.dot} shrink-0"></span>
+                    <span class="font-bold text-xs text-slate-900 dark:text-slate-100">${c.code}</span>
+                    <button type="button" onclick="event.stopPropagation(); openCreditModal('${c.id}')" title="Click to edit units (credits)"
+                      class="text-[10px] font-semibold px-1.5 py-0.2 rounded cursor-pointer transition ${c.unitsEdited
+                        ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:text-purple-800 dark:hover:text-purple-300'}">${c.units}u ✎</button>
+                    ${isStreamReq ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300">${state.stream} Req</span>` : ''}
+                    ${!isStreamReq && isInSelectedStream ? `<span class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300">${state.stream}</span>` : ''}
+                  </div>
+                  <div onclick="event.stopPropagation(); openCourseInfoModal('${c.id}')" title="Click to edit course info (code / title / units)"
+                    class="text-[11px] mt-0.5 leading-snug line-clamp-2 cursor-pointer hover:text-purple-700 dark:hover:text-purple-300 hover:underline ${c.infoEdited ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'}">${c.title} ✎</div>
+                </div>
+                <div class="shrink-0 flex flex-col items-end gap-1">
+                  ${scheduledTerm
+                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">✓ ${scheduledTerm}</span>`
+                    : `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 group-hover:bg-purple-700 group-hover:text-white transition">+ Add</span>`
+                  }
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div>
+            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5 px-0.5">${groupTitle}</div>
+            <div class="space-y-1.5">${cards}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderYearsGrid() {
+      const container = document.getElementById('years-grid');
+      const years = [1, 2, 3, 4];
+
+      container.innerHTML = years.map(yr => {
+        const yearTerms = TERMS.filter(t => t.year === yr && (!t.isSummer || state.showSummer));
+        const yearUnits = yearTerms.reduce((sum, t) => {
+          return sum + (state.schedule[t.id] || []).reduce((u, cid) => u + (getCourseById(cid)?.units || 0), 0);
+        }, 0);
+
+        const colsClass = state.showSummer ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2';
+
+        const termCards = yearTerms.map(term => {
+          const courseIds = state.schedule[term.id] || [];
+          const termUnits = courseIds.reduce((sum, cid) => sum + (getCourseById(cid)?.units || 0), 0);
+          const isTarget = state.selectedTerm === term.id;
+
+          let loadBadgeClass = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+          let loadWarning = '';
+          if (!term.isSummer) {
+            if (termUnits > 18) {
+              loadBadgeClass = 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300';
+              loadWarning = 'Heavy (>18u)';
+            } else if (termUnits > 0 && termUnits < 12) {
+              loadBadgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300';
+              loadWarning = 'Light (<12u)';
+            } else if (termUnits >= 12) {
+              loadBadgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+            }
+          }
+
+          const coursePills = courseIds.length === 0
+            ? `<div class="h-24 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-[11px] text-slate-400 dark:text-slate-500 p-3 text-center">
+                <span>Drag courses here or click "+ Add"</span>
+              </div>`
+            : courseIds.map(cid => {
+                const c = getCourseById(cid);
+                if (!c) return '';
+                const st = catBadgeStyle(c.cat);
+                return `
+                  <div draggable="true"
+                    ondragstart="onDragStart(event, '${c.id}', '${term.id}')"
+                    class="group flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700/80 hover:border-purple-400 dark:hover:border-purple-500 transition cursor-grab active:cursor-grabbing">
+                    <div class="flex items-start gap-2 min-w-0">
+                      <span class="w-2.5 h-2.5 rounded-full ${st.dot} mt-1 shrink-0"></span>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="text-xs font-bold text-slate-900 dark:text-white">${c.code}</span>
+                          <span class="text-[10px] font-semibold px-1.5 py-0.2 rounded border ${st.badge}">${st.label}</span>
+                          ${c.majorGpa ? `<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500" title="Included in Major GPA">MGPA</span>` : ''}
+                        </div>
+                        <div class="text-[11px] text-slate-600 dark:text-slate-400 truncate">${c.title}</div>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button type="button" onclick="event.stopPropagation(); openCourseInfoModal('${c.id}')" title="Edit course info (code / title / units)"
+                        class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition no-print">✎</button>
+                      <button type="button" onclick="event.stopPropagation(); openCreditModal('${c.id}')" title="Click to edit units (credits)"
+                        class="text-xs font-bold cursor-pointer hover:underline ${c.unitsEdited ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300 hover:text-purple-700 dark:hover:text-purple-300'}">${c.units}u ✎</button>
+                      <button onclick="removeCourseFromTerm('${term.id}', '${c.id}')" title="Remove from term"
+                        class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition no-print">
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('');
+
+          return `
+            <div onclick="setSelectedTerm('${term.id}')"
+              ondragover="onDragOver(event)"
+              ondragleave="onDragLeave(event)"
+              ondrop="onDrop(event, '${term.id}')"
+              class="term-card rounded-2xl bg-white dark:bg-slate-900 border transition p-3.5 flex flex-col justify-between ${
+                isTarget
+                  ? 'border-purple-500 ring-2 ring-purple-500/20 shadow-md'
+                  : 'border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700'
+              }">
+              <div>
+                <div class="flex items-center justify-between gap-2 mb-2.5">
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">${term.label}</h3>
+                    ${isTarget ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 no-print">Selected</span>` : ''}
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    ${loadWarning ? `<span class="text-[10px] font-bold text-amber-600 dark:text-amber-400">${loadWarning}</span>` : ''}
+                    <span class="px-2 py-0.5 rounded-lg text-xs font-bold ${loadBadgeClass}">${termUnits} units</span>
+                  </div>
+                </div>
+                <div class="space-y-1.5">${coursePills}</div>
+              </div>
+
+              <div class="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 no-print">
+                <span class="text-[11px] text-slate-400">${courseIds.length} course${courseIds.length === 1 ? '' : 's'}</span>
+                <div class="flex items-center gap-2.5 flex-wrap justify-end">
+                  <button onclick="event.stopPropagation(); pickCoursesForTerm('${term.id}')"
+                    class="lg:hidden text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline">
+                    + Pick Courses
+                  </button>
+                  <button onclick="event.stopPropagation(); openCustomModal('${term.id}')"
+                    class="text-[11px] font-semibold text-purple-700 dark:text-purple-300 hover:underline">
+                    + Add Custom / Core
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-lg text-xs font-extrabold bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900">Year ${yr}</span>
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Academic Year ${2025 + yr}–${String(26 + yr).slice(-2)}</span>
+              </div>
+              <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Year ${yr} Total: ${yearUnits} units</span>
+            </div>
+            <div class="grid ${colsClass} gap-3">${termCards}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderAll() {
+      document.getElementById('stream-select').value = state.stream;
+      document.documentElement.classList.toggle('dark', state.darkMode);
+      const summerDot = document.getElementById('summer-dot');
+      summerDot.className = `w-2 h-2 rounded-full ${state.showSummer ? 'bg-emerald-500' : 'bg-slate-400'}`;
+
+      renderTermDropdowns();
+      renderStats();
+      renderCourseBank();
+      renderYearsGrid();
+      applyView();
+      renderTimetable();
+    }
+
+    /* ==========================================================================
+       6. INTERACTIONS: DRAG & DROP, ADD/REMOVE, CUSTOM COURSES
+    ========================================================================== */
+    let draggedCourseId = null;
+    let draggedFromTerm = null;
+
+    function onDragStart(e, courseId, fromTerm) {
+      draggedCourseId = courseId;
+      draggedFromTerm = fromTerm;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', courseId);
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function onDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function onDrop(e, targetTermId) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!draggedCourseId) return;
+      scheduleCourse(draggedCourseId, targetTermId);
+      draggedCourseId = null;
+      draggedFromTerm = null;
+    }
+
+    function scheduleCourse(courseId, targetTermId) {
+      // Remove from any existing term first (each course scheduled once)
+      for (const t of TERMS) {
+        state.schedule[t.id] = (state.schedule[t.id] || []).filter(id => id !== courseId);
+      }
+      state.schedule[targetTermId].push(courseId);
+      state.selectedTerm = targetTermId;
+      saveState();
+      renderAll();
+    }
+
+    function toggleCourseInSelectedTerm(courseId) {
+      const existingTerm = findCourseTerm(courseId);
+      if (existingTerm === state.selectedTerm) {
+        removeCourseFromTerm(existingTerm, courseId);
+      } else {
+        scheduleCourse(courseId, state.selectedTerm);
+        const c = getCourseById(courseId);
+        showToast(`Added ${c ? c.code : courseId} to ${state.selectedTerm}`);
+      }
+    }
+
+    function removeCourseFromTerm(termId, courseId) {
+      state.schedule[termId] = (state.schedule[termId] || []).filter(id => id !== courseId);
+      saveState();
+      renderAll();
+    }
+
+    function setSelectedTerm(termId) {
+      if (state.selectedTerm === termId) return;
+      state.selectedTerm = termId;
+      renderTermDropdowns();
+      renderYearsGrid();
+      renderTimetable();
+    }
+
+    function setStream(stream) {
+      state.stream = stream;
+      saveState();
+      renderAll();
+      showToast(`Switched stream to ${stream === 'GENERAL' ? 'General SEEM' : stream}`);
+    }
+
+    function setCatFilter(cat) {
+      state.catFilter = cat;
+      document.querySelectorAll('.cat-pill').forEach(btn => {
+        const active = btn.dataset.cat === cat;
+        btn.className = active
+          ? 'cat-pill px-2.5 py-1 rounded-lg bg-purple-700 text-white shrink-0'
+          : 'cat-pill px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0';
+      });
+      renderCourseBank();
+    }
+
+    function toggleSummer() {
+      state.showSummer = !state.showSummer;
+      saveState();
+      renderAll();
+    }
+
+    function toggleDarkMode() {
+      state.darkMode = !state.darkMode;
+      saveState();
+      renderAll();
+    }
+
+    function toggleTemplateMenu() {
+      document.getElementById('template-menu').classList.toggle('hidden');
+    }
+
+    document.addEventListener('click', e => {
+      const wrap = document.getElementById('template-dropdown-wrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('template-menu').classList.add('hidden');
+      }
+    });
+
+    /* ==========================================================================
+       7. CUSTOM COURSE MODAL & EXPORT / IMPORT
+    ========================================================================== */
+    function openCustomModal(termId) {
+      if (termId) state.selectedTerm = termId;
+      renderTermDropdowns();
+      document.getElementById('custom-modal').classList.remove('hidden');
+      document.getElementById('cust-code').focus();
+    }
+
+    function closeCustomModal() {
+      document.getElementById('custom-modal').classList.add('hidden');
+    }
+
+    function fillCustomPreset(code, title, units, tag) {
+      document.getElementById('cust-code').value = code;
+      document.getElementById('cust-title').value = title;
+      document.getElementById('cust-units').value = units;
+      document.getElementById('cust-tag').value = tag;
+    }
+
+    function submitCustomCourse(e) {
+      e.preventDefault();
+      const code = document.getElementById('cust-code').value.trim().toUpperCase();
+      const title = document.getElementById('cust-title').value.trim();
+      const units = parseFloat(document.getElementById('cust-units').value) || 0;
+      const sub = document.getElementById('cust-tag').value;
+      const termId = document.getElementById('cust-term').value;
+
+      if (!code || !title) return;
+
+      // Smart-paste may have matched an existing course even if the code field was edited
+      const hint = pendingSmartCourseId ? getCourseById(pendingSmartCourseId) : null;
+      // Check if already in catalog or customCourses
+      let existing = getAllCourses().find(c => c.id.toUpperCase() === code || c.code.toUpperCase() === code || (c.code.split('/')[0].trim().toUpperCase() === code))
+        || (hint && (hint.code.split('/')[0].trim().toUpperCase() === code || hint.title === title) ? hint : null);
+      let courseId;
+      if (existing) {
+        courseId = existing.id;
+        // Apply smart-pasted units/title updates to the matched course
+        if (pendingSmartCourseId === existing.id) {
+          if (units !== existing.units) {
+            const base = getBaseCourseById(existing.id);
+            if (base && units === base.units) delete state.unitOverrides[existing.id];
+            else state.unitOverrides[existing.id] = units;
+          }
+          if (title && title !== existing.title) {
+            state.infoOverrides[existing.id] = { ...(state.infoOverrides[existing.id] || {}), title };
+          }
+        }
+      } else {
+        courseId = 'CUST_' + code.replace(/[^A-Z0-9]/g, '') + '_' + Date.now().toString(36);
+        state.customCourses.push({
+          id: courseId,
+          code,
+          title,
+          units,
+          cat: 'EXTRA',
+          sub,
+          majorGpa: false,
+        });
+      }
+
+      let ttAdded = 0;
+      const ttWrapVisible = !document.getElementById('smart-tt-wrap').classList.contains('hidden');
+      if (ttWrapVisible && document.getElementById('smart-tt-add').checked && pendingSmartSessions.length > 0) {
+        if (!Array.isArray(state.timetable[termId])) state.timetable[termId] = [];
+        pendingSmartSessions.forEach(ps => {
+          state.timetable[termId].push({
+            id: 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            courseId, day: ps.day, start: ps.start, end: ps.end,
+            location: ps.location || '', kind: ps.kind || 'Lecture',
+          });
+          ttAdded++;
+        });
+      }
+      pendingSmartSessions = [];
+      pendingSmartCourseId = null;
+      scheduleCourse(courseId, termId);
+      closeCustomModal();
+      document.getElementById('custom-form').reset();
+      document.getElementById('smart-paste-input').value = '';
+      document.getElementById('smart-paste-preview').textContent = '';
+      document.getElementById('smart-tt-wrap').classList.add('hidden');
+      showToast(`Added ${code} (${units}u) to ${termId}` + (ttAdded ? ` • ${ttAdded} timetable session${ttAdded === 1 ? '' : 's'}` : ''));
+    }
+
+    /* ==========================================================================
+       7b. CREDIT (UNITS) EDITOR — freely override any course's units
+    ========================================================================== */
+    let creditEditingId = null;
+
+    function openCreditModal(courseId) {
+      const c = getCourseById(courseId);
+      if (!c) return;
+      creditEditingId = courseId;
+      document.getElementById('credit-course-code').textContent = c.code;
+      document.getElementById('credit-course-title').textContent = c.title;
+      const base = getBaseCourseById(courseId);
+      document.getElementById('credit-default-hint').textContent = `Official / original value: ${base ? base.units : c.units} u`;
+      document.getElementById('credit-units').value = c.units;
+      const hasOverride = Object.prototype.hasOwnProperty.call(state.unitOverrides || {}, courseId);
+      document.getElementById('credit-reset-btn').classList.toggle('hidden', !hasOverride);
+      document.getElementById('credit-modal').classList.remove('hidden');
+      const input = document.getElementById('credit-units');
+      input.focus();
+      input.select();
+    }
+
+    function closeCreditModal() {
+      document.getElementById('credit-modal').classList.add('hidden');
+      creditEditingId = null;
+    }
+
+    function submitCreditEdit(e) {
+      e.preventDefault();
+      if (!creditEditingId) return;
+      const v = parseFloat(document.getElementById('credit-units').value);
+      if (!isFinite(v) || v < 0 || v > 24) {
+        showToast('Please enter a unit value between 0 and 24.');
+        return;
+      }
+      const base = getBaseCourseById(creditEditingId);
+      if (base && v === base.units) {
+        delete state.unitOverrides[creditEditingId];
+      } else {
+        state.unitOverrides[creditEditingId] = v;
+      }
+      const c = getCourseById(creditEditingId);
+      saveState();
+      closeCreditModal();
+      renderAll();
+      showToast(`${c ? c.code : 'Course'} units updated to ${v}u`);
+    }
+
+    function resetCreditUnits() {
+      if (!creditEditingId) return;
+      const c = getCourseById(creditEditingId);
+      delete state.unitOverrides[creditEditingId];
+      saveState();
+      closeCreditModal();
+      renderAll();
+      showToast(`${c ? c.code : 'Course'} units restored to default.`);
+    }
+
+    function promptResetUnitEdits() {
+      document.getElementById('template-menu').classList.add('hidden');
+      const count = Object.keys(state.unitOverrides || {}).length;
+      if (count === 0) {
+        showToast('No custom unit edits to reset.');
+        return;
+      }
+      openConfirmModal(
+        'Reset All Custom Unit Edits?',
+        `This will restore official / original unit values for ${count} course${count === 1 ? '' : 's'} you edited.`,
+        () => {
+          state.unitOverrides = {};
+          saveState();
+          renderAll();
+          showToast('All course units restored to defaults.');
+        }
+      );
+    }
+
+    /* ==========================================================================
+       7c. VIEW SWITCHER & WEEKLY TIMETABLE (Mon–Fri, per selected term)
+    ========================================================================== */
+    const TT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const TT_START_MIN = 8 * 60 + 30;
+    const TT_END_MIN = 21 * 60 + 30;
+    const TT_PX_PER_MIN = 1;
+
+    function ttEscape(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function ttToMin(t) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || ''));
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : NaN;
+    }
+    function ttSessions(termId) {
+      const arr = (state.timetable || {})[termId];
+      return Array.isArray(arr) ? arr : [];
+    }
+    function ttClash(a, b) {
+      return a.day === b.day && ttToMin(a.start) < ttToMin(b.end) && ttToMin(b.start) < ttToMin(a.end);
+    }
+
+    function setView(v) {
+      state.view = v === 'timetable' ? 'timetable' : 'plan';
+      state.mobileTab = state.view;
+      saveState();
+      applyView();
+      renderTimetable();
+    }
+
+    function isMobileViewport() {
+      return window.matchMedia('(max-width: 1023.98px)').matches;
+    }
+
+    function setMobileTab(tab) {
+      state.mobileTab = ['plan', 'timetable', 'courses'].includes(tab) ? tab : 'plan';
+      if (state.mobileTab !== 'courses') state.view = state.mobileTab;
+      saveState();
+      applyView();
+      renderTimetable();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function pickCoursesForTerm(termId) {
+      state.selectedTerm = termId;
+      renderTermDropdowns();
+      setMobileTab('courses');
+      showToast(`Pick courses for ${termId} — tap a course to add.`);
+    }
+
+    function toggleStats() {
+      const open = document.body.classList.toggle('stats-open');
+      const hint = document.getElementById('stats-toggle-hint');
+      if (hint) hint.textContent = open ? '▴ Hide' : '▾ Details';
+    }
+
+    function applyView() {
+      const mobile = isMobileViewport();
+      const mtab = ['plan', 'timetable', 'courses'].includes(state.mobileTab) ? state.mobileTab : 'plan';
+      const showTT = mobile ? mtab === 'timetable' : state.view === 'timetable';
+      const showPlanMain = mobile ? mtab !== 'timetable' : state.view === 'plan';
+      document.getElementById('plan-main').classList.toggle('hidden', !showPlanMain);
+      document.getElementById('timetable-view').classList.toggle('hidden', !showTT);
+      document.body.dataset.mtab = mtab; // drives mobile-only CSS (aside / right section / stats)
+
+      // Desktop header switcher (unchanged behavior on lg+)
+      const active = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-700 text-white shadow-sm transition';
+      const idle = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition';
+      document.getElementById('view-btn-plan').className = state.view === 'timetable' ? idle : active;
+      document.getElementById('view-btn-timetable').className = state.view === 'timetable' ? active : idle;
+
+      // Mobile bottom tab bar active states
+      const tabActive = 'flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-bold text-purple-700 dark:text-purple-300';
+      const tabIdle = 'flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400';
+      ['plan', 'timetable', 'courses'].forEach(t => {
+        const btn = document.getElementById('mtab-' + t);
+        if (btn) btn.className = mtab === t ? tabActive : tabIdle;
+      });
+    }
+    // Re-apply layout when crossing the lg breakpoint (e.g. rotation / window resize)
+    window.addEventListener('resize', applyView);
+
+    function renderTimetable() {
+      const termId = state.selectedTerm;
+      const term = TERMS.find(t => t.id === termId);
+      const sel = document.getElementById('tt-term-select');
+      sel.innerHTML = TERMS.map(t => `<option value="${t.id}" ${t.id === termId ? 'selected' : ''}>${t.label}</option>`).join('');
+
+      const sessions = ttSessions(termId).filter(s => s && getCourseById(s.courseId));
+      const conflictIds = new Set();
+      for (let i = 0; i < sessions.length; i++) {
+        for (let j = i + 1; j < sessions.length; j++) {
+          if (ttClash(sessions[i], sessions[j])) { conflictIds.add(sessions[i].id); conflictIds.add(sessions[j].id); }
+        }
+      }
+      const badge = document.getElementById('tt-conflict-badge');
+      if (conflictIds.size > 0) {
+        badge.textContent = `⚠ ${conflictIds.size} overlapping session${conflictIds.size === 1 ? '' : 's'}`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      const gridH = TT_END_MIN - TT_START_MIN;
+      const hourLines = [];
+      const labels = [];
+      for (let m = TT_START_MIN; m <= TT_END_MIN; m += 60) {
+        const top = m - TT_START_MIN;
+        hourLines.push(`<div class="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800" style="top:${top}px"></div>`);
+        const hh = String(Math.floor(m / 60)).padStart(2, '0');
+        const mm = String(m % 60).padStart(2, '0');
+        labels.push(`<div class="absolute right-1.5 text-[10px] text-slate-400 dark:text-slate-500" style="top:${Math.max(0, top - 7)}px">${hh}:${mm}</div>`);
+      }
+
+      const catBlock = {
+        FP:   { block: 'bg-blue-100/90 border-blue-400 text-blue-900 dark:bg-blue-950/70 dark:border-blue-600 dark:text-blue-200' },
+        FD:   { block: 'bg-teal-100/90 border-teal-400 text-teal-900 dark:bg-teal-950/70 dark:border-teal-600 dark:text-teal-200' },
+        REQ:  { block: 'bg-indigo-100/90 border-indigo-400 text-indigo-900 dark:bg-indigo-950/70 dark:border-indigo-600 dark:text-indigo-200' },
+        ELEC: { block: 'bg-emerald-100/90 border-emerald-400 text-emerald-900 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200' },
+        EXTRA:{ block: 'bg-amber-100/90 border-amber-400 text-amber-900 dark:bg-amber-950/70 dark:border-amber-600 dark:text-amber-200' },
+      };
+
+      const dayCols = TT_DAYS.map((dName, dIdx) => {
+        const daySessions = sessions.filter(s => Number(s.day) === dIdx);
+        // Side-by-side layout for overlapping sessions (greedy lane assignment)
+        const sorted = [...daySessions].sort((a, b) => ttToMin(a.start) - ttToMin(b.start));
+        const laneEnds = [];
+        const layout = sorted.map(s => {
+          const st = ttToMin(s.start), en = ttToMin(s.end);
+          let lane = laneEnds.findIndex(end => end <= st);
+          if (lane === -1) { lane = laneEnds.length; laneEnds.push(en); } else { laneEnds[lane] = en; }
+          return { s, lane };
+        });
+        const laneCount = Math.max(1, laneEnds.length);
+        const blocks = layout.map(({ s, lane }) => {
+          const c = getCourseById(s.courseId);
+          const st = Math.max(TT_START_MIN, ttToMin(s.start));
+          const en = Math.min(TT_END_MIN, ttToMin(s.end));
+          if (!(en > st)) return '';
+          const top = st - TT_START_MIN;
+          const h = en - st;
+          const isConflict = conflictIds.has(s.id);
+          const palette = (catBlock[c.cat] || catBlock.EXTRA).block;
+          const borderCls = isConflict ? 'border-2 border-rose-500 ring-2 ring-rose-400/60' : 'border ' + palette.split(' ').filter(x => x.startsWith('border-')).join(' ');
+          const widthPct = 100 / laneCount;
+          return `
+            <div onclick="event.stopPropagation(); openSessionModal('${s.id}')" title="Click to edit session"
+              class="absolute rounded-lg px-1.5 py-1 overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition ${palette} ${borderCls}"
+              style="top:${top}px;height:${h}px;left:calc(${lane * widthPct}% + 2px);width:calc(${widthPct}% - 4px);">
+              <div class="text-[10px] font-bold leading-tight truncate">${ttEscape(c.code.split('/')[0].trim())}${isConflict ? ' ⚠' : ''}</div>
+              <div class="text-[9px] leading-tight truncate">${ttEscape(s.start)}–${ttEscape(s.end)}${s.kind ? ' • ' + ttEscape(s.kind) : ''}</div>
+              ${s.location ? `<div class="text-[9px] font-semibold leading-tight truncate">📍 ${ttEscape(s.location)}</div>` : ''}
+            </div>`;
+        }).join('');
+        return `
+          <div class="border-l border-slate-100 dark:border-slate-800 first:border-l-0">
+            <div class="h-8 flex items-center justify-center text-[11px] font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">${dName}</div>
+            <div class="relative cursor-pointer" style="height:${gridH}px" onclick="ttGridClick(event, ${dIdx})">${blocks}</div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('tt-grid-wrap').innerHTML = `
+        <div class="min-w-[640px]">
+          <div class="grid" style="grid-template-columns:52px repeat(5, minmax(0,1fr))">
+            <div>
+              <div class="h-8 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60"></div>
+              <div class="relative" style="height:${gridH}px">${labels.join('')}</div>
+            </div>
+            ${dayCols}
+          </div>
+        </div>`;
+      // Hour lines behind blocks: inject into each day column via overlay
+      document.querySelectorAll('#tt-grid-wrap .relative').forEach(col => {
+        if (col.querySelector('.tt-hourlines')) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'tt-hourlines absolute inset-0 pointer-events-none';
+        overlay.innerHTML = hourLines.join('');
+        col.prepend(overlay);
+      });
+      if (term) sel.title = `Showing ${term.label}`;
+    }
+
+    function ttGridClick(e, dayIdx) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      let mins = TT_START_MIN + Math.round(y / TT_PX_PER_MIN / 30) * 30;
+      mins = Math.max(TT_START_MIN, Math.min(TT_END_MIN - 60, mins));
+      const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+      const mm = String(mins % 60).padStart(2, '0');
+      openSessionModal(null, dayIdx, `${hh}:${mm}`);
+    }
+
+    /* ---- Session add / edit modal ---- */
+    let sessionEditingId = null;
+
+    function renderSessionDays(selected) {
+      document.getElementById('sess-days').innerHTML = TT_DAYS.map((d, i) => `
+        <label class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold cursor-pointer transition ${
+          selected.includes(i)
+            ? 'bg-purple-700 text-white border-purple-700'
+            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-400'
+        }">
+          <input type="checkbox" class="sess-day-cb hidden" value="${i}" ${selected.includes(i) ? 'checked' : ''} onchange="renderSessionDays(getSelectedSessionDays())" />
+          ${d}
+        </label>`).join('');
+    }
+    function getSelectedSessionDays() {
+      return [...document.querySelectorAll('.sess-day-cb')].filter(cb => cb.checked).map(cb => parseInt(cb.value, 10));
+    }
+
+    function openSessionModal(sessionId, dayIdx, startTime) {
+      const termId = state.selectedTerm;
+      const scheduled = (state.schedule[termId] || []).map(getCourseById).filter(Boolean);
+      const pool = scheduled.length > 0 ? scheduled : getAllCourses();
+      document.getElementById('sess-course').innerHTML =
+        (scheduled.length === 0 ? `<option value="" disabled>— No courses in this term; pick any —</option>` : '') +
+        pool.map(c => `<option value="${c.id}">${ttEscape(c.code)} — ${ttEscape(c.title)}</option>`).join('');
+
+      sessionEditingId = sessionId || null;
+      const existing = sessionId ? ttSessions(termId).find(s => s.id === sessionId) : null;
+      document.getElementById('session-modal-title').textContent = existing ? 'Edit Class Session' : 'Add Class Session';
+      if (existing) {
+        document.getElementById('sess-course').value = existing.courseId;
+        renderSessionDays([Number(existing.day)]);
+        document.getElementById('sess-start').value = existing.start;
+        document.getElementById('sess-end').value = existing.end;
+        document.getElementById('sess-location').value = existing.location || '';
+        document.getElementById('sess-kind').value = existing.kind || 'Lecture';
+      } else {
+        renderSessionDays(dayIdx == null ? [0] : [dayIdx]);
+        const st = startTime || '09:30';
+        document.getElementById('sess-start').value = st;
+        const endMin = Math.min(TT_END_MIN, ttToMin(st) + 60);
+        document.getElementById('sess-end').value = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+        document.getElementById('sess-location').value = '';
+        document.getElementById('sess-kind').value = 'Lecture';
+      }
+      document.getElementById('sess-delete-btn').classList.toggle('hidden', !existing);
+      document.getElementById('session-modal').classList.remove('hidden');
+    }
+
+    function closeSessionModal() {
+      document.getElementById('session-modal').classList.add('hidden');
+      sessionEditingId = null;
+    }
+
+    function submitSession(e) {
+      e.preventDefault();
+      const termId = state.selectedTerm;
+      const courseId = document.getElementById('sess-course').value;
+      const days = getSelectedSessionDays();
+      const start = document.getElementById('sess-start').value;
+      const end = document.getElementById('sess-end').value;
+      const location = document.getElementById('sess-location').value.trim();
+      const kind = document.getElementById('sess-kind').value;
+      if (!courseId) { showToast('Please choose a course.'); return; }
+      if (days.length === 0) { showToast('Please select at least one day (Mon–Fri).'); return; }
+      const st = ttToMin(start), en = ttToMin(end);
+      if (!(en > st)) { showToast('End time must be later than start time.'); return; }
+      if (st < TT_START_MIN || en > TT_END_MIN) { showToast('Sessions must be within 08:30–21:30.'); return; }
+
+      if (!Array.isArray(state.timetable[termId])) state.timetable[termId] = [];
+      const list = state.timetable[termId];
+      if (sessionEditingId) {
+        const idx = list.findIndex(s => s.id === sessionEditingId);
+        const old = idx >= 0 ? list[idx] : null;
+        if (idx >= 0) list.splice(idx, 1);
+        // First selected day updates the edited session; extra days create new ones
+        days.forEach((d, i) => {
+          list.push({
+            id: (i === 0 && old) ? old.id : 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            courseId, day: d, start, end, location, kind,
+          });
+        });
+      } else {
+        days.forEach(d => {
+          list.push({ id: 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), courseId, day: d, start, end, location, kind });
+        });
+      }
+      // Ensure the course is scheduled in this term so it appears in the plan view too
+      if (!(state.schedule[termId] || []).includes(courseId)) {
+        scheduleCourse(courseId, termId); // saves + renders
+      } else {
+        saveState();
+        renderAll();
+      }
+      closeSessionModal();
+      showToast(`Session saved for ${TT_DAYS.filter((_, i) => days.includes(i)).join('/')} ${start}–${end}.`);
+    }
+
+    function deleteSession() {
+      if (!sessionEditingId) return;
+      const termId = state.selectedTerm;
+      state.timetable[termId] = ttSessions(termId).filter(s => s.id !== sessionEditingId);
+      saveState();
+      closeSessionModal();
+      renderAll();
+      showToast('Session deleted.');
+    }
+
+    /* ==========================================================================
+       7d. COURSE INFO EDITOR — rename code / title / units without delete+re-add
+    ========================================================================== */
+    let infoEditingId = null;
+
+    function openCourseInfoModal(courseId) {
+      const c = getCourseById(courseId);
+      if (!c) return;
+      infoEditingId = courseId;
+      document.getElementById('ci-code').value = c.code;
+      document.getElementById('ci-title').value = c.title;
+      document.getElementById('ci-units').value = c.units;
+      document.getElementById('ci-sub').value = c.sub || '';
+      const isCustom = state.customCourses.some(x => x.id === courseId);
+      document.getElementById('ci-delete-btn').classList.toggle('hidden', !isCustom);
+      const hasInfoOverride = Object.prototype.hasOwnProperty.call(state.infoOverrides || {}, courseId);
+      document.getElementById('ci-reset-btn').classList.toggle('hidden', !hasInfoOverride || isCustom);
+      document.getElementById('course-info-modal').classList.remove('hidden');
+      document.getElementById('ci-title').focus();
+    }
+
+    function closeCourseInfoModal() {
+      document.getElementById('course-info-modal').classList.add('hidden');
+      infoEditingId = null;
+    }
+
+    function submitCourseInfo(e) {
+      e.preventDefault();
+      if (!infoEditingId) return;
+      const code = document.getElementById('ci-code').value.trim();
+      const title = document.getElementById('ci-title').value.trim();
+      const sub = document.getElementById('ci-sub').value.trim();
+      const units = parseFloat(document.getElementById('ci-units').value);
+      if (!code || !title) return;
+      if (!isFinite(units) || units < 0 || units > 24) { showToast('Please enter a unit value between 0 and 24.'); return; }
+
+      const base = getBaseCourseById(infoEditingId);
+      const custom = state.customCourses.find(x => x.id === infoEditingId);
+      if (custom) {
+        custom.code = code; custom.title = title; custom.units = units; if (sub) custom.sub = sub;
+        delete state.unitOverrides[infoEditingId];
+        delete state.infoOverrides[infoEditingId];
+      } else if (base) {
+        const io = {};
+        if (code !== base.code) io.code = code;
+        if (title !== base.title) io.title = title;
+        if (sub && sub !== base.sub) io.sub = sub;
+        if (Object.keys(io).length > 0) state.infoOverrides[infoEditingId] = io;
+        else delete state.infoOverrides[infoEditingId];
+        if (units === base.units) delete state.unitOverrides[infoEditingId];
+        else state.unitOverrides[infoEditingId] = units;
+      }
+      saveState();
+      closeCourseInfoModal();
+      renderAll();
+      showToast(`${code} info updated.`);
+    }
+
+    function resetCourseInfo() {
+      if (!infoEditingId) return;
+      delete state.infoOverrides[infoEditingId];
+      saveState();
+      closeCourseInfoModal();
+      renderAll();
+      showToast('Course info restored to official values.');
+    }
+
+    function deleteCustomCourse() {
+      if (!infoEditingId) return;
+      const id = infoEditingId;
+      const c = getCourseById(id);
+      openConfirmModal(
+        'Delete This Custom Course?',
+        `${c ? c.code : id} will be removed from the Course Bank, all terms and the weekly timetable.`,
+        () => {
+          state.customCourses = state.customCourses.filter(x => x.id !== id);
+          TERMS.forEach(t => { state.schedule[t.id] = (state.schedule[t.id] || []).filter(cid => cid !== id); });
+          Object.keys(state.timetable || {}).forEach(tid => {
+            state.timetable[tid] = (state.timetable[tid] || []).filter(s => s.courseId !== id);
+          });
+          delete state.unitOverrides[id];
+          delete state.infoOverrides[id];
+          saveState();
+          closeCourseInfoModal();
+          renderAll();
+          showToast('Custom course deleted.');
+        }
+      );
+    }
+
+    /* ==========================================================================
+       7e. SMART PASTE — parse CUSIS-style text into the custom-course form
+    ========================================================================== */
+    let pendingSmartSessions = [];
+    let pendingSmartCourseId = null;
+
+    async function smartPasteClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) { showToast('Clipboard is empty.'); return; }
+        document.getElementById('smart-paste-input').value = text;
+        handleSmartPaste();
+      } catch (err) {
+        showToast('Clipboard access blocked — paste manually into the box (Cmd/Ctrl+V).');
+        document.getElementById('smart-paste-input').focus();
+      }
+    }
+
+    function handleSmartPaste() {
+      const raw = document.getElementById('smart-paste-input').value;
+      const preview = document.getElementById('smart-paste-preview');
+      pendingSmartSessions = [];
+      pendingSmartCourseId = null;
+      document.getElementById('smart-tt-wrap').classList.add('hidden');
+      if (!raw.trim()) { preview.textContent = ''; return; }
+
+      const text = raw.replace(/\s+/g, ' ').trim();
+      const parts = [];
+
+      // Course code: 4 letters + 4 digits (tolerate a space, e.g. "GECC 1130")
+      const codeMatch = /\b([A-Za-z]{4})\s?(\d{4})\b/.exec(text);
+      let code = '';
+      if (codeMatch) {
+        code = (codeMatch[1] + codeMatch[2]).toUpperCase();
+        document.getElementById('cust-code').value = code;
+        parts.push(code);
+      }
+
+      // Units: "3.00 units" / "3 units" / "3u" / bare "3.00"
+      let units = null;
+      const unitMatch = /(\d+(?:\.\d+)?)\s*(?:units?|u\b|credits?)/i.exec(text) || /(?:^|\s)(\d\.\d{2})(?=\s|$)/.exec(text);
+      if (unitMatch) {
+        units = parseFloat(unitMatch[1]);
+        if (isFinite(units) && units >= 0 && units <= 24) {
+          document.getElementById('cust-units').value = units;
+          parts.push(`${units}u`);
+        } else { units = null; }
+      }
+
+      // Sessions: weekday + time range (+ optional venue), possibly several per text
+      const dayMap = { mon: 0, monday: 0, tue: 1, tues: 1, tuesday: 1, wed: 2, weds: 2, wednesday: 2, thu: 3, thur: 3, thurs: 3, thursday: 3, fri: 4, friday: 4,
+        '一': 0, '二': 1, '三': 2, '四': 3, '五': 4 };
+      const sessRe = /(Mon(?:day)?|Tue(?:s|sday)?|Wed(?:s|nesday)?|Thu(?:r|rs|rsday)?|Fri(?:day)?|星期[一二三四五]|週[一二三四五])\s*[:：]?\s*(\d{1,2}:\d{2})\s*(?:-|–|—|to|~)\s*(\d{1,2}:\d{2})(?:\s*(?:@|at|in|venue[:：]?)?\s*([A-Z]{2,5}\s?\d{1,4}[A-Z]?|[A-Z]{2,5}\s?LT\s?\d{1,2}))?/gi;
+      let sm;
+      let titleSource = text;
+      while ((sm = sessRe.exec(text)) !== null) {
+        const dayKey = sm[1].toLowerCase().replace(/星期|週/, '');
+        const day = dayMap[dayKey] != null ? dayMap[dayKey] : dayMap[dayKey.slice(0, 3)];
+        const start = sm[2].padStart(5, '0');
+        const end = sm[3].padStart(5, '0');
+        const location = sm[4] ? sm[4].trim() : '';
+        const kind = /tut/i.test(text.slice(sm.index, sm.index + 60)) ? 'Tutorial' : /lab/i.test(text.slice(sm.index, sm.index + 60)) ? 'Lab' : 'Lecture';
+        if (day != null && ttToMin(end) > ttToMin(start)) {
+          pendingSmartSessions.push({ day, start, end, location, kind });
+        }
+        titleSource = titleSource.replace(sm[0], ' ');
+      }
+
+      // Title: strip code, units and session fragments from the first meaningful line
+      const firstLine = raw.split(/\r?\n/).map(l => l.trim()).find(l => l.length > 0) || text;
+      let title = firstLine;
+      if (codeMatch) title = title.replace(new RegExp(codeMatch[1] + '\\s?' + codeMatch[2], 'i'), ' ');
+      title = title.replace(/(\d+(?:\.\d+)?)\s*(?:units?|u\b|credits?)/gi, ' ')
+                   .replace(/(?:^|\s)\d\.\d{2}(?=\s|$)/g, ' ')
+                   .replace(sessRe, ' ')
+                   .replace(/^[\s•·\-–—|:,]+|[\s•·\-–—|:,]+$/g, '')
+                   .replace(/\s+/g, ' ')
+                   .trim();
+      if (title) {
+        document.getElementById('cust-title').value = title;
+        parts.push(`"${title}"`);
+      }
+
+      // Match an existing course so we update instead of duplicating
+      if (code) {
+        const match = getAllCourses().find(c =>
+          c.id.toUpperCase() === code ||
+          c.code.toUpperCase() === code ||
+          c.code.split('/')[0].trim().toUpperCase() === code);
+        if (match) {
+          pendingSmartCourseId = match.id;
+          if (!title) document.getElementById('cust-title').value = match.title;
+          if (units == null) document.getElementById('cust-units').value = match.units;
+          parts.push('matched existing course');
+        }
+      }
+
+      if (pendingSmartSessions.length > 0) {
+        document.getElementById('smart-tt-wrap').classList.remove('hidden');
+        parts.push(`${pendingSmartSessions.length} session${pendingSmartSessions.length === 1 ? '' : 's'} detected`);
+      }
+      preview.textContent = parts.length ? `✓ Detected: ${parts.join(' • ')}` : 'Could not detect a course code — fill the form manually.';
+    }
+
+    function exportJSON() {
+      const dataStr = JSON.stringify(state, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CUHK-SEEM-StudyPlan-${state.stream}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Study plan exported as JSON.');
+    }
+
+    function triggerImport() {
+      document.getElementById('import-file').click();
+    }
+
+    function handleImport(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          if (!parsed || typeof parsed.schedule !== 'object') throw new Error('Invalid format');
+          state = {
+            ...state,
+            ...parsed,
+            schedule: { ...initEmptySchedule(), ...parsed.schedule },
+            customCourses: Array.isArray(parsed.customCourses) ? parsed.customCourses : [],
+            unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
+            infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
+            timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+          };
+          saveState();
+          renderAll();
+          showToast('Study plan imported successfully.');
+        } catch (err) {
+          showToast('Import failed: invalid JSON file.');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    /* ==========================================================================
+       8. CONFIRMATION MODAL & TOAST
+    ========================================================================== */
+    let confirmCallback = null;
+    function openConfirmModal(title, msg, onConfirm) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-msg').textContent = msg;
+      confirmCallback = onConfirm;
+      document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+    function closeConfirmModal() {
+      document.getElementById('confirm-modal').classList.add('hidden');
+      confirmCallback = null;
+    }
+    document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+      if (confirmCallback) confirmCallback();
+      closeConfirmModal();
+    });
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
+    }
+
+    // Boot: show local state immediately, then overwrite with the latest cloud plan
+    function applyPlanData(parsed) {
+      state = {
+        ...state,
+        ...parsed,
+        schedule: { ...initEmptySchedule(), ...(parsed.schedule || {}) },
+        customCourses: Array.isArray(parsed.customCourses) ? parsed.customCourses : [],
+        unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
+        infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
+        timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+      };
+    }
+
+    async function initApp() {
+      const hadLocal = !!localStorage.getItem(STORAGE_KEY);
+      loadState();
+      // One-time seed from the user's live plan screenshot; never overwrites existing data
+      if (!hadLocal) {
+        state.unitOverrides = { ...SEED_UNIT_OVERRIDES, ...state.unitOverrides };
+        const known = new Set([...CATALOG, ...state.customCourses].map(c => c.id));
+        const seedIds = SEED_Y1T1_IDS.filter(id => known.has(id));
+        if (seedIds.length) state.schedule.Y1T1 = seedIds;
+      }
+      renderAll();
+      const cloudData = await loadFromCloud();
+      if (cloudData && typeof cloudData === 'object' && cloudData.schedule) {
+        applyPlanData(cloudData);
+        // Cache cloud plan locally without re-triggering a cloud upload
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+        renderAll();
+      }
+    }
+    initApp();
+  </script>
+</body>
+</html>
