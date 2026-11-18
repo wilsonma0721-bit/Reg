@@ -142,6 +142,9 @@
             <button onclick="promptResetUnitEdits()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 text-xs font-semibold text-amber-700 dark:text-amber-400 transition">
               Reset All Custom Unit Edits
             </button>
+            <button onclick="promptRestoreDeleted()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition">
+              Restore Deleted Official Courses
+            </button>
             <button onclick="promptClearAll()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 text-xs font-semibold text-rose-600 dark:text-rose-400 transition">
               Clear All Scheduled Courses
             </button>
@@ -338,6 +341,7 @@
           (5) <strong>Edit Course Info:</strong> click a course title (or the ✎ button on a term card) to rename its code / title / units without deleting it.
           (6) <strong>Weekly Timetable:</strong> switch views in the top bar; click a block to edit or an empty slot to add a Mon–Fri session with venue. Overlaps are flagged in red.
           (7) <strong>Smart Paste:</strong> in the Add-Course dialog, paste CUSIS-style text to auto-fill code, units, title and detected class sessions.
+          (8) <strong>Delete vs Unassign:</strong> the × on a term card (and "Remove Course from Term" in a session dialog) only unassigns the course — it returns to the Course Bank and its sessions in that term are cleared. Permanent deletion happens only via "Delete Course" in the course edit dialog; deleted official courses can be restored from the Templates menu. The Weekly Timetable always mirrors the selected term's scheduled courses.
         </p>
       </div>
     </section>
@@ -564,9 +568,15 @@
               class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
           </div>
         </div>
-        <div class="flex items-center justify-between gap-2 pt-1">
-          <button type="button" id="sess-delete-btn" onclick="deleteSession()"
-            class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition">Delete</button>
+        <div class="flex items-center justify-between gap-2 pt-1 flex-wrap">
+          <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" id="sess-unassign-btn" onclick="unassignSessionCourse()"
+              class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 transition"
+              title="Remove this course from the term (returns to Course Bank) and clear all its sessions here">Remove Course from Term</button>
+            <button type="button" id="sess-delete-btn" onclick="deleteSession()"
+              class="hidden px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition"
+              title="Delete only this session; the course stays in the term">Delete Session</button>
+          </div>
           <div class="flex gap-2 ml-auto">
             <button type="button" onclick="closeSessionModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white shadow-sm">Save Session</button>
@@ -858,6 +868,7 @@
       timetable: {},     // { termId: [{ id, courseId, day(0-4), start:'HH:MM', end:'HH:MM', location, kind }] }
       view: 'plan',      // 'plan' | 'timetable' (desktop view switcher)
       mobileTab: 'plan', // 'plan' | 'timetable' | 'courses' (mobile bottom tab bar)
+      deletedCatalog: [], // catalog course ids permanently deleted by user (restorable)
     };
 
     function initEmptySchedule() {
@@ -879,6 +890,7 @@
             unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
             infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
             timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+            deletedCatalog: Array.isArray(parsed.deletedCatalog) ? parsed.deletedCatalog : [],
           };
         } else {
           // First-time visit: load Official Recommended Pattern so user starts with an actionable plan
@@ -901,7 +913,8 @@
     function getAllCourses() {
       const overrides = state.unitOverrides || {};
       const info = state.infoOverrides || {};
-      return [...CATALOG, ...state.customCourses].map(c => {
+      const deleted = new Set(state.deletedCatalog || []);
+      return [...CATALOG.filter(c => !deleted.has(c.id)), ...state.customCourses].map(c => {
         let out = c;
         if (Object.prototype.hasOwnProperty.call(overrides, c.id)) {
           out = { ...out, units: overrides[c.id], unitsEdited: true, defaultUnits: c.units };
@@ -1448,9 +1461,19 @@
     }
 
     function scheduleCourse(courseId, targetTermId) {
-      // Remove from any existing term first (each course scheduled once)
+      // Remove from any existing term first (each course scheduled once);
+      // carry the course's timetable sessions along so plan & timetable stay in sync
       for (const t of TERMS) {
+        const had = (state.schedule[t.id] || []).includes(courseId);
         state.schedule[t.id] = (state.schedule[t.id] || []).filter(id => id !== courseId);
+        if (had && t.id !== targetTermId) {
+          const moved = (state.timetable[t.id] || []).filter(s => s.courseId === courseId);
+          state.timetable[t.id] = (state.timetable[t.id] || []).filter(s => s.courseId !== courseId);
+          if (moved.length) {
+            if (!Array.isArray(state.timetable[targetTermId])) state.timetable[targetTermId] = [];
+            state.timetable[targetTermId].push(...moved);
+          }
+        }
       }
       state.schedule[targetTermId].push(courseId);
       state.selectedTerm = targetTermId;
@@ -1470,7 +1493,9 @@
     }
 
     function removeCourseFromTerm(termId, courseId) {
+      // Unassign only: course returns to the Course Bank; its sessions in THIS term are cleared
       state.schedule[termId] = (state.schedule[termId] || []).filter(id => id !== courseId);
+      state.timetable[termId] = (state.timetable[termId] || []).filter(s => s.courseId !== courseId);
       saveState();
       renderAll();
     }
@@ -1775,9 +1800,11 @@
       const termId = state.selectedTerm;
       const term = TERMS.find(t => t.id === termId);
       const sel = document.getElementById('tt-term-select');
-      sel.innerHTML = TERMS.map(t => `<option value="${t.id}" ${t.id === termId ? 'selected' : ''}>${t.label}</option>`).join('');
+      sel.innerHTML = TERMS.filter(t => !t.isSummer || state.showSummer).map(t => `<option value="${t.id}" ${t.id === termId ? 'selected' : ''}>${t.label}</option>`).join('');
 
-      const sessions = ttSessions(termId).filter(s => s && getCourseById(s.courseId));
+      // Strict sync: only sessions of courses currently scheduled in this term are shown
+      const scheduledIds = new Set(state.schedule[termId] || []);
+      const sessions = ttSessions(termId).filter(s => s && scheduledIds.has(s.courseId) && getCourseById(s.courseId));
       const conflictIds = new Set();
       for (let i = 0; i < sessions.length; i++) {
         for (let j = i + 1; j < sessions.length; j++) {
@@ -1935,6 +1962,7 @@
         document.getElementById('sess-kind').value = 'Lecture';
       }
       document.getElementById('sess-delete-btn').classList.toggle('hidden', !existing);
+      document.getElementById('sess-unassign-btn').classList.toggle('hidden', !existing);
       document.getElementById('session-modal').classList.remove('hidden');
     }
 
@@ -1995,7 +2023,18 @@
       saveState();
       closeSessionModal();
       renderAll();
-      showToast('Session deleted.');
+      showToast('Session deleted (course stays in the term).');
+    }
+
+    function unassignSessionCourse() {
+      if (!sessionEditingId) return;
+      const termId = state.selectedTerm;
+      const s = ttSessions(termId).find(x => x.id === sessionEditingId);
+      if (!s) { closeSessionModal(); return; }
+      const c = getCourseById(s.courseId);
+      closeSessionModal();
+      removeCourseFromTerm(termId, s.courseId);
+      showToast(`${c ? c.code : 'Course'} removed from ${termId} — back in Course Bank; its sessions here were cleared.`);
     }
 
     /* ==========================================================================
@@ -2012,7 +2051,7 @@
       document.getElementById('ci-units').value = c.units;
       document.getElementById('ci-sub').value = c.sub || '';
       const isCustom = state.customCourses.some(x => x.id === courseId);
-      document.getElementById('ci-delete-btn').classList.toggle('hidden', !isCustom);
+      document.getElementById('ci-delete-btn').classList.remove('hidden');
       const hasInfoOverride = Object.prototype.hasOwnProperty.call(state.infoOverrides || {}, courseId);
       document.getElementById('ci-reset-btn').classList.toggle('hidden', !hasInfoOverride || isCustom);
       document.getElementById('course-info-modal').classList.remove('hidden');
@@ -2069,21 +2108,33 @@
       if (!infoEditingId) return;
       const id = infoEditingId;
       const c = getCourseById(id);
+      const isCustom = state.customCourses.some(x => x.id === id);
       openConfirmModal(
-        'Delete This Custom Course?',
-        `${c ? c.code : id} will be removed from the Course Bank, all terms and the weekly timetable.`,
+        'Permanently Delete This Course?',
+        `${c ? c.code : id} will be removed from the Course Bank, every term and all weekly timetables.` +
+        (isCustom ? ' Custom courses cannot be restored afterwards.' : ' Official courses can be restored later via Templates → Restore Deleted Official Courses.'),
         () => {
-          state.customCourses = state.customCourses.filter(x => x.id !== id);
-          TERMS.forEach(t => { state.schedule[t.id] = (state.schedule[t.id] || []).filter(cid => cid !== id); });
-          Object.keys(state.timetable || {}).forEach(tid => {
-            state.timetable[tid] = (state.timetable[tid] || []).filter(s => s.courseId !== id);
-          });
-          delete state.unitOverrides[id];
-          delete state.infoOverrides[id];
+          purgeCourse(id);
           saveState();
           closeCourseInfoModal();
           renderAll();
-          showToast('Custom course deleted.');
+          showToast(`${c ? c.code : id} permanently deleted.`);
+        }
+      );
+    }
+
+    function promptRestoreDeleted() {
+      document.getElementById('template-menu').classList.add('hidden');
+      const n = (state.deletedCatalog || []).length;
+      if (n === 0) { showToast('No deleted official courses to restore.'); return; }
+      openConfirmModal(
+        'Restore Deleted Official Courses?',
+        `${n} official course${n === 1 ? '' : 's'} you deleted will return to the Course Bank (unscheduled).`,
+        () => {
+          state.deletedCatalog = [];
+          saveState();
+          renderAll();
+          showToast('Deleted official courses restored to the Course Bank.');
         }
       );
     }
@@ -2224,6 +2275,7 @@
             unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
             infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
             timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+            deletedCatalog: Array.isArray(parsed.deletedCatalog) ? parsed.deletedCatalog : [],
           };
           saveState();
           renderAll();
@@ -2417,8 +2469,8 @@
       '                                      e.g. add Y1T1 CSCI1510 3 "Computer Principles and C++" "CS Minor"',
       'edit <code> [units=N] [title="…"] [term=T]',
       '                                      e.g. edit ENGG1040 units=3 term=Y1T1',
-      'rm <term> <code> [--purge]            remove from term (--purge also deletes custom course)',
-      'del <code>                            delete a custom course everywhere',
+      'rm <term> <code> [--purge]            unassign from term + clear its sessions (--purge = permanent delete)',
+      'del <code>                            permanently delete course everywhere (official: restorable)',
       'order <term> <n1 n2 …>                reorder by ls numbers, e.g. order Y1T1 3 1 2 4',
       'move <term> <code> <position>         move one course to a position (1-based)',
       'time ls [term]                        list sessions with index numbers',
@@ -2504,6 +2556,10 @@
     }
 
     function purgeCourse(id) {
+      if (CATALOG.some(c => c.id === id)) {
+        if (!Array.isArray(state.deletedCatalog)) state.deletedCatalog = [];
+        if (!state.deletedCatalog.includes(id)) state.deletedCatalog.push(id);
+      }
       state.customCourses = state.customCourses.filter(x => x.id !== id);
       TERMS.forEach(t => { state.schedule[t.id] = (state.schedule[t.id] || []).filter(cid => cid !== id); });
       Object.keys(state.timetable || {}).forEach(tid => {
@@ -2521,12 +2577,12 @@
       const c = findCourse(args[2]);
       if (!c) throw new Error(`Course "${args[2]}" not found.`);
       state.schedule[term] = (state.schedule[term] || []).filter(id => id !== c.id);
+      state.timetable[term] = (state.timetable[term] || []).filter(s => s.courseId !== c.id);
       if (purge) {
-        if (!state.customCourses.some(x => x.id === c.id)) throw new Error(`${c.code} is a catalog course — removed from ${term}, but cannot be purged.`);
         purgeCourse(c.id);
-        clog(`✓ ${c.code} removed from ${term} and purged from course bank.`, 'ok');
+        clog(`✓ ${c.code} removed from ${term} and permanently deleted from course bank.`, 'ok');
       } else {
-        clog(`✓ ${c.code} removed from ${term}.`, 'ok');
+        clog(`✓ ${c.code} unassigned from ${term} (sessions cleared; course stays in Course Bank).`, 'ok');
       }
     }
 
@@ -2534,9 +2590,9 @@
       if (tk.length < 2) throw new Error('Syntax: del <code>');
       const c = findCourse(tk[1]);
       if (!c) throw new Error(`Course "${tk[1]}" not found.`);
-      if (!state.customCourses.some(x => x.id === c.id)) throw new Error(`${c.code} is a built-in catalog course and cannot be deleted. Use rm <term> <code> to unschedule it.`);
       purgeCourse(c.id);
-      clog(`✓ ${c.code} deleted from course bank, all terms and timetable.`, 'ok');
+      clog(`✓ ${c.code} permanently deleted from course bank, all terms and timetables.` +
+        (CATALOG.some(x => x.id === c.id) ? ' (official course — restorable via Templates menu)' : ''), 'ok');
     }
 
     function cmdOrder(tk) {
@@ -2698,6 +2754,7 @@
         unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
         infoOverrides: (parsed.infoOverrides && typeof parsed.infoOverrides === 'object') ? parsed.infoOverrides : {},
         timetable: (parsed.timetable && typeof parsed.timetable === 'object') ? parsed.timetable : {},
+        deletedCatalog: Array.isArray(parsed.deletedCatalog) ? parsed.deletedCatalog : [],
       };
     }
 
