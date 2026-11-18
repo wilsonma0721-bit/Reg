@@ -148,6 +148,12 @@
           </div>
         </div>
 
+        <!-- Web Command Console toggle -->
+        <button onclick="toggleConsole()" title="Command Console (shortcut: ` or Cmd/Ctrl+K)"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold font-mono bg-slate-900 dark:bg-slate-100 text-emerald-400 dark:text-emerald-700 border border-slate-700 dark:border-slate-300 hover:bg-slate-800 dark:hover:bg-white shadow-sm transition flex items-center gap-1.5">
+          <span>&gt;_</span> Console
+        </button>
+
         <!-- Export / Import / Print -->
         <div class="flex items-center gap-1">
           <button onclick="exportJSON()" title="Export Plan as JSON"
@@ -537,15 +543,26 @@
               class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
               <option>Lecture</option>
               <option>Tutorial</option>
+              <option>Interactive Tutorial</option>
               <option>Lab</option>
+              <option>Laboratory</option>
+              <option>Assembly</option>
+              <option>Field Studies/Field-trip</option>
               <option>Other</option>
             </select>
           </div>
         </div>
-        <div>
-          <label class="block text-xs font-semibold mb-1" for="sess-location">Location / Venue</label>
-          <input type="text" id="sess-location" placeholder="e.g. ERB 407, LSK LT1"
-            class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold mb-1" for="sess-location">Location / Venue</label>
+            <input type="text" id="sess-location" placeholder="e.g. ERB 407, LSK LT1"
+              class="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1" for="sess-section">Section</label>
+            <input type="text" id="sess-section" placeholder="e.g. A, AT01"
+              class="w-full px-2 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
         </div>
         <div class="flex items-center justify-between gap-2 pt-1">
           <button type="button" id="sess-delete-btn" onclick="deleteSession()"
@@ -598,6 +615,32 @@
       <div class="flex justify-end gap-2">
         <button onclick="closeConfirmModal()" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">Cancel</button>
         <button id="confirm-ok-btn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION: web-console -->
+  <div id="console-panel" class="hidden fixed bottom-0 inset-x-0 z-[60] no-print">
+    <div class="max-w-[1100px] mx-auto px-2 sm:px-4 pb-[env(safe-area-inset-bottom)]">
+      <div class="rounded-t-2xl border border-b-0 border-slate-300 dark:border-slate-700 bg-white/95 dark:bg-slate-950/95 backdrop-blur shadow-2xl flex flex-col">
+        <div class="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+          <span class="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400">&gt;_ SEEM Command Console</span>
+          <span class="text-[10px] text-slate-400 hidden sm:inline">every command auto-syncs to Supabase • type help</span>
+          <div class="ml-auto flex items-center gap-1">
+            <button onclick="consoleResize(-60)" title="Shorter" class="px-2 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">−</button>
+            <button onclick="consoleResize(60)" title="Taller" class="px-2 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">＋</button>
+            <button onclick="toggleConsole(false)" title="Close (` or Cmd/Ctrl+K)" class="px-2 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/60">✕</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1 px-3 pt-2" id="console-chips"></div>
+        <div id="console-log" class="px-3 py-2 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5" style="height:220px"></div>
+        <div class="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-800">
+          <span class="font-mono text-xs font-bold text-purple-700 dark:text-purple-300 shrink-0">❯</span>
+          <textarea id="console-input" rows="1" spellcheck="false"
+            placeholder='Type a command, e.g. ls Y1T1 — or paste multiple lines to batch-run (Enter runs, Shift+Enter newline, ↑/↓ history)'
+            class="flex-1 min-w-0 resize-none px-2.5 py-1.5 font-mono text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"></textarea>
+          <button onclick="runConsoleInput()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white shadow-sm shrink-0">Run</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1796,7 +1839,7 @@
               class="absolute rounded-lg px-1.5 py-1 overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition ${palette} ${borderCls}"
               style="top:${top}px;height:${h}px;left:calc(${lane * widthPct}% + 2px);width:calc(${widthPct}% - 4px);">
               <div class="text-[10px] font-bold leading-tight truncate">${ttEscape(c.code.split('/')[0].trim())}${isConflict ? ' ⚠' : ''}</div>
-              <div class="text-[9px] leading-tight truncate">${ttEscape(s.start)}–${ttEscape(s.end)}${s.kind ? ' • ' + ttEscape(s.kind) : ''}</div>
+              <div class="text-[9px] leading-tight truncate">${ttEscape(s.start)}–${ttEscape(s.end)}${s.kind ? ' • ' + ttEscape(s.kind) : ''}${s.section ? ' [' + ttEscape(s.section) + ']' : ''}</div>
               ${s.location ? `<div class="text-[9px] font-semibold leading-tight truncate">📍 ${ttEscape(s.location)}</div>` : ''}
             </div>`;
         }).join('');
@@ -1873,7 +1916,14 @@
         document.getElementById('sess-start').value = existing.start;
         document.getElementById('sess-end').value = existing.end;
         document.getElementById('sess-location').value = existing.location || '';
-        document.getElementById('sess-kind').value = existing.kind || 'Lecture';
+        document.getElementById('sess-section').value = existing.section || '';
+        const kindSel = document.getElementById('sess-kind');
+        if (![...kindSel.options].some(o => o.value === (existing.kind || 'Lecture'))) {
+          const opt = document.createElement('option');
+          opt.textContent = existing.kind;
+          kindSel.appendChild(opt);
+        }
+        kindSel.value = existing.kind || 'Lecture';
       } else {
         renderSessionDays(dayIdx == null ? [0] : [dayIdx]);
         const st = startTime || '09:30';
@@ -1881,6 +1931,7 @@
         const endMin = Math.min(TT_END_MIN, ttToMin(st) + 60);
         document.getElementById('sess-end').value = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
         document.getElementById('sess-location').value = '';
+        document.getElementById('sess-section').value = '';
         document.getElementById('sess-kind').value = 'Lecture';
       }
       document.getElementById('sess-delete-btn').classList.toggle('hidden', !existing);
@@ -1900,6 +1951,7 @@
       const start = document.getElementById('sess-start').value;
       const end = document.getElementById('sess-end').value;
       const location = document.getElementById('sess-location').value.trim();
+      const section = document.getElementById('sess-section').value.trim();
       const kind = document.getElementById('sess-kind').value;
       if (!courseId) { showToast('Please choose a course.'); return; }
       if (days.length === 0) { showToast('Please select at least one day (Mon–Fri).'); return; }
@@ -1917,12 +1969,12 @@
         days.forEach((d, i) => {
           list.push({
             id: (i === 0 && old) ? old.id : 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-            courseId, day: d, start, end, location, kind,
+            courseId, day: d, start, end, location, kind, section,
           });
         });
       } else {
         days.forEach(d => {
-          list.push({ id: 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), courseId, day: d, start, end, location, kind });
+          list.push({ id: 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), courseId, day: d, start, end, location, kind, section });
         });
       }
       // Ensure the course is scheduled in this term so it appears in the plan view too
@@ -2211,6 +2263,430 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
     }
+
+    /* ==========================================================================
+       9. WEB COMMAND CONSOLE — batch manage courses / timetable, auto cloud sync
+    ========================================================================== */
+    const CONSOLE_CHIPS = ['help', 'ls', 'seed', 'order Y1T1 ', 'time add Y1T1 ', 'edit ', 'add Y1T1 ', 'rm Y1T1 '];
+    let consoleHistory = [];
+    let consoleHistIdx = -1;
+    let consoleHeight = 220;
+
+    function toggleConsole(force) {
+      const panel = document.getElementById('console-panel');
+      const show = force != null ? force : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !show);
+      if (show) {
+        renderConsoleChips();
+        if (!document.getElementById('console-log').dataset.booted) {
+          document.getElementById('console-log').dataset.booted = '1';
+          clog('SEEM console ready. Type help for all commands. Every change auto-syncs to Supabase.', 'ok');
+        }
+        document.getElementById('console-input').focus();
+      }
+    }
+
+    function consoleResize(delta) {
+      consoleHeight = Math.max(120, Math.min(480, consoleHeight + delta));
+      document.getElementById('console-log').style.height = consoleHeight + 'px';
+    }
+
+    function renderConsoleChips() {
+      const wrap = document.getElementById('console-chips');
+      if (wrap.dataset.booted) return;
+      wrap.dataset.booted = '1';
+      wrap.innerHTML = CONSOLE_CHIPS.map(cmd => `
+        <button type="button" class="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:text-purple-800 dark:hover:text-purple-300 transition">${ttEscape(cmd)}</button>`).join('');
+      [...wrap.children].forEach((btn, i) => {
+        btn.addEventListener('click', () => {
+          const input = document.getElementById('console-input');
+          const cmd = CONSOLE_CHIPS[i];
+          if (cmd.endsWith(' ')) { input.value = cmd; input.focus(); }
+          else { input.value = cmd; runConsoleInput(); }
+        });
+      });
+    }
+
+    function clog(msg, type) {
+      const log = document.getElementById('console-log');
+      const line = document.createElement('div');
+      line.className = type === 'err' ? 'text-rose-600 dark:text-rose-400 whitespace-pre-wrap'
+        : type === 'ok' ? 'text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap'
+        : type === 'cmd' ? 'text-purple-700 dark:text-purple-300 font-bold whitespace-pre-wrap'
+        : 'text-slate-600 dark:text-slate-300 whitespace-pre-wrap';
+      line.textContent = msg;
+      log.appendChild(line);
+      while (log.children.length > 400) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function runConsoleInput() {
+      const input = document.getElementById('console-input');
+      const raw = input.value;
+      if (!raw.trim()) return;
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+      lines.forEach(line => {
+        consoleHistory.push(line);
+        clog('❯ ' + line, 'cmd');
+        try { execCommand(line); }
+        catch (err) { clog('✗ ' + err.message, 'err'); }
+      });
+      consoleHistIdx = consoleHistory.length;
+      input.value = '';
+      saveState(); // one debounced cloud sync per batch
+      renderAll();
+    }
+
+    // Tokenizer: supports "quoted strings" and bare words
+    function tokenize(line) {
+      const out = [];
+      const re = /"([^"]*)"|(\S+)/g;
+      let m;
+      while ((m = re.exec(line)) !== null) out.push(m[1] != null ? m[1] : m[2]);
+      return out;
+    }
+    function termOk(t) {
+      if (!TERMS.some(x => x.id === t)) throw new Error(`Unknown term "${t}". Use Y1T1…Y4T2 or Y1S…Y4S.`);
+      return t;
+    }
+    function findCourse(code) {
+      const up = String(code).toUpperCase();
+      return getAllCourses().find(c =>
+        c.id.toUpperCase() === up ||
+        c.code.toUpperCase() === up ||
+        c.code.split('/')[0].trim().toUpperCase() === up) || null;
+    }
+    function dayIdx(name) {
+      const map = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4 };
+      const d = map[String(name).toLowerCase()];
+      if (d == null) throw new Error(`Invalid day "${name}". Use Mon|Tue|Wed|Thu|Fri.`);
+      return d;
+    }
+    function parseRange(r) {
+      const m = /^(\d{1,2}:\d{2})\s*[-–~]\s*(\d{1,2}:\d{2})$/.exec(r);
+      if (!m) throw new Error(`Invalid time range "${r}". Use HH:MM-HH:MM, e.g. 10:30-12:15.`);
+      const start = m[1].padStart(5, '0'), end = m[2].padStart(5, '0');
+      if (!(ttToMin(end) > ttToMin(start))) throw new Error('End time must be later than start time.');
+      if (ttToMin(start) < TT_START_MIN || ttToMin(end) > TT_END_MIN) throw new Error('Sessions must be within 08:30–21:30.');
+      return { start, end };
+    }
+    function normKind(k) {
+      if (!k) return 'Lecture';
+      const k2 = k.toLowerCase();
+      if (/^lec/.test(k2)) return 'Lecture';
+      if (/interactive/.test(k2)) return 'Interactive Tutorial';
+      if (/^tut/.test(k2)) return 'Tutorial';
+      if (/^lab/.test(k2)) return /oratory/.test(k2) ? 'Laboratory' : 'Lab';
+      if (/assembl/.test(k2)) return 'Assembly';
+      if (/field/.test(k2)) return 'Field Studies/Field-trip';
+      return k;
+    }
+    function ensureCustom(code, units, title, tag) {
+      let c = findCourse(code);
+      if (c) return c;
+      const up = code.toUpperCase();
+      const id = 'CUST_' + up.replace(/[^A-Z0-9]/g, '') + '_' + Date.now().toString(36);
+      c = { id, code: up, title: title || up, units: units != null ? units : 3, cat: 'EXTRA', sub: tag || 'Free Elective / Other', majorGpa: false };
+      state.customCourses.push(c);
+      return c;
+    }
+    function setUnits(courseId, units) {
+      const base = getBaseCourseById(courseId);
+      const custom = state.customCourses.find(x => x.id === courseId);
+      if (custom) { custom.units = units; delete state.unitOverrides[courseId]; }
+      else if (base && units === base.units) delete state.unitOverrides[courseId];
+      else state.unitOverrides[courseId] = units;
+    }
+    function setTitle(courseId, title) {
+      const custom = state.customCourses.find(x => x.id === courseId);
+      if (custom) { custom.title = title; return; }
+      const base = getBaseCourseById(courseId);
+      const io = { ...(state.infoOverrides[courseId] || {}) };
+      if (base && title === base.title) delete io.title; else io.title = title;
+      if (Object.keys(io).length) state.infoOverrides[courseId] = io; else delete state.infoOverrides[courseId];
+    }
+    function moveCourse(courseId, termId) {
+      TERMS.forEach(t => { state.schedule[t.id] = (state.schedule[t.id] || []).filter(id => id !== courseId); });
+      state.schedule[termId].push(courseId);
+    }
+
+    const CONSOLE_HELP = [
+      'help                                  show this list',
+      'ls [term] | view [term]               list courses + Mon–Fri sessions (default: selected term)',
+      'add <term> <code> <units> "<title>" [tag]',
+      '                                      e.g. add Y1T1 CSCI1510 3 "Computer Principles and C++" "CS Minor"',
+      'edit <code> [units=N] [title="…"] [term=T]',
+      '                                      e.g. edit ENGG1040 units=3 term=Y1T1',
+      'rm <term> <code> [--purge]            remove from term (--purge also deletes custom course)',
+      'del <code>                            delete a custom course everywhere',
+      'order <term> <n1 n2 …>                reorder by ls numbers, e.g. order Y1T1 3 1 2 4',
+      'move <term> <code> <position>         move one course to a position (1-based)',
+      'time ls [term]                        list sessions with index numbers',
+      'time add <term> <code> <Day> <HH:MM-HH:MM> "<location>" [type] [section]',
+      '                                      e.g. time add Y1T1 ENGG1040 Wed 09:30-10:15 "Sino Building LT2" Lecture A',
+      'time edit <term> <#> [day=Mon] [time=HH:MM-HH:MM] [loc="…"] [type=…] [section=…]',
+      'time del <term> <#>                   delete session by its time ls index',
+      'seed | test                           load the built-in Y1T1 test plan + timetable',
+      'clear                                 clear console log',
+      'Multi-line paste runs every line as a batch. ↑/↓ recalls history.',
+    ].join('\n');
+
+    function execCommand(line) {
+      const tk = tokenize(line);
+      const cmd = (tk[0] || '').toLowerCase();
+      switch (cmd) {
+        case 'help': clog(CONSOLE_HELP, 'info'); return;
+        case 'clear': document.getElementById('console-log').innerHTML = ''; return;
+        case 'ls': case 'view': return cmdLs(tk[1]);
+        case 'add': return cmdAdd(tk);
+        case 'edit': return cmdEdit(tk);
+        case 'rm': return cmdRm(tk);
+        case 'del': return cmdDel(tk);
+        case 'order': return cmdOrder(tk);
+        case 'move': return cmdMove(tk);
+        case 'time': return cmdTime(tk);
+        case 'seed': case 'test': return cmdSeed();
+        default: throw new Error(`Unknown command "${tk[0]}". Type help for the command list.`);
+      }
+    }
+
+    function cmdLs(termArg) {
+      const term = termOk(termArg || state.selectedTerm);
+      const ids = state.schedule[term] || [];
+      clog(`— ${term} • ${ids.length} course${ids.length === 1 ? '' : 's'} —`, 'info');
+      ids.forEach((cid, i) => {
+        const c = getCourseById(cid);
+        clog(`${i + 1}. ${c ? c.code : cid} | ${c ? c.units : '?'}u | ${c ? c.title : '(missing)'}`, 'info');
+      });
+      const ss = ttSessions(term);
+      clog(`— Weekly sessions (${ss.length}) —`, 'info');
+      ss.forEach((s, i) => {
+        const c = getCourseById(s.courseId);
+        clog(`${i + 1}. ${TT_DAYS[s.day]} ${s.start}-${s.end} | ${c ? c.code.split('/')[0].trim() : s.courseId}${s.section ? ' [' + s.section + ']' : ''} | ${s.kind || 'Lecture'} | ${s.location || '—'}`, 'info');
+      });
+    }
+
+    function cmdAdd(tk) {
+      if (tk.length < 5) throw new Error('Syntax: add <term> <code> <units> "<title>" [tag]');
+      const term = termOk(tk[1]);
+      const units = parseFloat(tk[3]);
+      if (!isFinite(units) || units < 0 || units > 24) throw new Error('Units must be a number between 0 and 24.');
+      const c = ensureCustom(tk[2], units, tk[4], tk[5]);
+      if (findCourse(tk[2]) && getCourseById(c.id).units !== units) setUnits(c.id, units);
+      if (tk[4] && getCourseById(c.id).title !== tk[4]) setTitle(c.id, tk[4]);
+      moveCourse(c.id, term);
+      state.selectedTerm = term;
+      clog(`✓ ${c.code} (${units}u) scheduled in ${term}.`, 'ok');
+    }
+
+    function cmdEdit(tk) {
+      if (tk.length < 3) throw new Error('Syntax: edit <code> [units=N] [title="…"] [term=T]');
+      const c = findCourse(tk[1]);
+      if (!c) throw new Error(`Course "${tk[1]}" not found. Use add to create it first.`);
+      const changes = [];
+      tk.slice(2).forEach(kv => {
+        const eq = kv.indexOf('=');
+        if (eq < 1) throw new Error(`Invalid option "${kv}". Use key=value, e.g. units=3.`);
+        const key = kv.slice(0, eq).toLowerCase();
+        const val = kv.slice(eq + 1);
+        if (key === 'units') {
+          const u = parseFloat(val);
+          if (!isFinite(u) || u < 0 || u > 24) throw new Error('Units must be 0–24.');
+          setUnits(c.id, u); changes.push(`units=${u}`);
+        } else if (key === 'title') {
+          if (!val) throw new Error('title cannot be empty.');
+          setTitle(c.id, val); changes.push('title updated');
+        } else if (key === 'term') {
+          termOk(val); moveCourse(c.id, val); changes.push(`term=${val}`);
+        } else throw new Error(`Unknown option "${key}". Use units / title / term.`);
+      });
+      clog(`✓ ${c.code}: ${changes.join(', ')}.`, 'ok');
+    }
+
+    function purgeCourse(id) {
+      state.customCourses = state.customCourses.filter(x => x.id !== id);
+      TERMS.forEach(t => { state.schedule[t.id] = (state.schedule[t.id] || []).filter(cid => cid !== id); });
+      Object.keys(state.timetable || {}).forEach(tid => {
+        state.timetable[tid] = (state.timetable[tid] || []).filter(s => s.courseId !== id);
+      });
+      delete state.unitOverrides[id];
+      delete state.infoOverrides[id];
+    }
+
+    function cmdRm(tk) {
+      const purge = tk.includes('--purge');
+      const args = tk.filter(x => x !== '--purge');
+      if (args.length < 3) throw new Error('Syntax: rm <term> <code> [--purge]');
+      const term = termOk(args[1]);
+      const c = findCourse(args[2]);
+      if (!c) throw new Error(`Course "${args[2]}" not found.`);
+      state.schedule[term] = (state.schedule[term] || []).filter(id => id !== c.id);
+      if (purge) {
+        if (!state.customCourses.some(x => x.id === c.id)) throw new Error(`${c.code} is a catalog course — removed from ${term}, but cannot be purged.`);
+        purgeCourse(c.id);
+        clog(`✓ ${c.code} removed from ${term} and purged from course bank.`, 'ok');
+      } else {
+        clog(`✓ ${c.code} removed from ${term}.`, 'ok');
+      }
+    }
+
+    function cmdDel(tk) {
+      if (tk.length < 2) throw new Error('Syntax: del <code>');
+      const c = findCourse(tk[1]);
+      if (!c) throw new Error(`Course "${tk[1]}" not found.`);
+      if (!state.customCourses.some(x => x.id === c.id)) throw new Error(`${c.code} is a built-in catalog course and cannot be deleted. Use rm <term> <code> to unschedule it.`);
+      purgeCourse(c.id);
+      clog(`✓ ${c.code} deleted from course bank, all terms and timetable.`, 'ok');
+    }
+
+    function cmdOrder(tk) {
+      if (tk.length < 3) throw new Error('Syntax: order <term> <n1 n2 …> (numbers from ls)');
+      const term = termOk(tk[1]);
+      const ids = state.schedule[term] || [];
+      const nums = tk.slice(2).map(x => parseInt(x, 10));
+      if (nums.some(n => !isFinite(n) || n < 1 || n > ids.length) || new Set(nums).size !== nums.length || nums.length !== ids.length) {
+        throw new Error(`Provide a permutation of 1…${ids.length}, e.g. order ${term} ${ids.map((_, i) => i + 1).reverse().join(' ')}.`);
+      }
+      state.schedule[term] = nums.map(n => ids[n - 1]);
+      clog(`✓ ${term} reordered: ${nums.join(' ')}.`, 'ok');
+    }
+
+    function cmdMove(tk) {
+      if (tk.length < 4) throw new Error('Syntax: move <term> <code> <position>');
+      const term = termOk(tk[1]);
+      const c = findCourse(tk[2]);
+      if (!c) throw new Error(`Course "${tk[2]}" not found.`);
+      const ids = state.schedule[term] || [];
+      const from = ids.indexOf(c.id);
+      if (from < 0) throw new Error(`${c.code} is not scheduled in ${term}.`);
+      const pos = parseInt(tk[3], 10);
+      if (!isFinite(pos) || pos < 1 || pos > ids.length) throw new Error(`Position must be 1…${ids.length}.`);
+      ids.splice(from, 1);
+      ids.splice(pos - 1, 0, c.id);
+      clog(`✓ ${c.code} moved to position ${pos} in ${term}.`, 'ok');
+    }
+
+    function cmdTime(tk) {
+      const sub = (tk[1] || '').toLowerCase();
+      if (sub === 'ls' || sub === 'view') return cmdLs(tk[2]);
+      if (sub === 'add') {
+        if (tk.length < 7) throw new Error('Syntax: time add <term> <code> <Day> <HH:MM-HH:MM> "<location>" [type] [section]');
+        const term = termOk(tk[2]);
+        const c = findCourse(tk[3]);
+        if (!c) throw new Error(`Course "${tk[3]}" not found. Use add first.`);
+        const day = dayIdx(tk[4]);
+        const { start, end } = parseRange(tk[5]);
+        const location = tk[6] || '';
+        const kind = normKind(tk[7]);
+        const section = tk[8] || '';
+        if (!Array.isArray(state.timetable[term])) state.timetable[term] = [];
+        state.timetable[term].push({ id: 'S_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), courseId: c.id, day, start, end, location, kind, section });
+        if (!(state.schedule[term] || []).includes(c.id)) moveCourse(c.id, term);
+        clog(`✓ ${TT_DAYS[day]} ${start}-${end} ${c.code.split('/')[0].trim()}${section ? ' [' + section + ']' : ''} @ ${location || '—'} added to ${term}.`, 'ok');
+        return;
+      }
+      if (sub === 'del' || sub === 'rm') {
+        if (tk.length < 4) throw new Error('Syntax: time del <term> <#> (index from time ls)');
+        const term = termOk(tk[2]);
+        const idx = parseInt(tk[3], 10) - 1;
+        const list = ttSessions(term);
+        if (!isFinite(idx) || idx < 0 || idx >= list.length) throw new Error(`Index must be 1…${list.length}. Run time ls ${term} first.`);
+        const removed = list.splice(idx, 1)[0];
+        clog(`✓ Session #${idx + 1} (${TT_DAYS[removed.day]} ${removed.start}-${removed.end}) deleted from ${term}.`, 'ok');
+        return;
+      }
+      if (sub === 'edit') {
+        if (tk.length < 4) throw new Error('Syntax: time edit <term> <#> [day=Mon] [time=HH:MM-HH:MM] [loc="…"] [type=…] [section=…]');
+        const term = termOk(tk[2]);
+        const idx = parseInt(tk[3], 10) - 1;
+        const list = ttSessions(term);
+        if (!isFinite(idx) || idx < 0 || idx >= list.length) throw new Error(`Index must be 1…${list.length}. Run time ls ${term} first.`);
+        const s = list[idx];
+        tk.slice(4).forEach(kv => {
+          const eq = kv.indexOf('=');
+          if (eq < 1) throw new Error(`Invalid option "${kv}". Use key=value.`);
+          const key = kv.slice(0, eq).toLowerCase();
+          const val = kv.slice(eq + 1);
+          if (key === 'day') s.day = dayIdx(val);
+          else if (key === 'time') { const r = parseRange(val); s.start = r.start; s.end = r.end; }
+          else if (key === 'loc' || key === 'location') s.location = val;
+          else if (key === 'type' || key === 'kind') s.kind = normKind(val);
+          else if (key === 'section' || key === 'sec') s.section = val;
+          else throw new Error(`Unknown option "${key}". Use day / time / loc / type / section.`);
+        });
+        clog(`✓ Session #${idx + 1} updated in ${term}.`, 'ok');
+        return;
+      }
+      throw new Error('Syntax: time ls|add|edit|del … — type help for details.');
+    }
+
+    // Built-in Y1T1 test data (user-provided real timetable)
+    const SEED_TEST_COURSES = [
+      { code: 'PHED1017', units: 1, title: 'Physical Education', tag: 'University Core / PE' },
+      { code: 'ENGG1110', units: 3, title: 'Problem Solving By Programming' },
+      { code: 'ENGG1040', units: 3, title: 'Basic Mathematics for Engineers' },
+      { code: 'ECON1101', units: 3, title: 'Basic Microeconomics' },
+      { code: 'ENGG1004', units: 3, title: 'Engineering Course' },
+      { code: 'CHLT1001', units: 3, title: 'University Chinese I' },
+      { code: 'GECC1000', units: 0, title: 'College Assembly', tag: 'University Core / GE' },
+      { code: 'GECC1130', units: 3, title: 'General Education Course' },
+      { code: 'GECC1132', units: 1, title: 'General Education Field Studies' },
+    ];
+    const SEED_TEST_SESSIONS = [
+      ['PHED1017', 0, '09:30-11:15', 'Haddon-Cave Sports Field', 'Lecture', 'A'],
+      ['ENGG1110', 0, '12:30-14:15', 'Lee Shau Kee Building LT4', 'Lecture', 'F'],
+      ['ENGG1040', 0, '15:30-17:15', 'Humanities Building 11', 'Lecture', 'A'],
+      ['ECON1101', 1, '10:30-12:15', 'Sino Building LT2', 'Lecture', 'A'],
+      ['ENGG1040', 2, '09:30-10:15', 'Sino Building LT2', 'Lecture', 'A'],
+      ['ENGG1040', 2, '10:30-12:15', 'Sino Building LT2', 'Interactive Tutorial', 'AT01'],
+      ['ENGG1004', 2, '14:30-16:15', 'Lady Shaw Bldg C1', 'Lecture', 'E'],
+      ['ENGG1004', 2, '16:30-17:15', 'Lady Shaw Bldg C1', 'Laboratory', 'EL01'],
+      ['ENGG1110', 3, '15:30-16:15', 'Science Centre L1', 'Lecture', 'F'],
+      ['ENGG1110', 3, '16:30-17:15', 'Science Centre L1', 'Laboratory', 'FL01'],
+      ['CHLT1001', 4, '08:30-11:15', 'Lee Shau Kee Building 515', 'Lecture', 'HD'],
+      ['GECC1000', 4, '11:30-13:15', 'Chung Chi College Chapel', 'Assembly', 'AA01'],
+      ['GECC1130', 4, '14:30-16:15', 'Chung Chi College Chapel', 'Lecture', ''],
+      ['GECC1132', 4, '16:30-18:15', 'Wu Ho Man Yuen Bldg 401', 'Field Studies/Field-trip', 'AOF1'],
+    ];
+
+    function cmdSeed() {
+      const term = 'Y1T1';
+      const ids = [];
+      SEED_TEST_COURSES.forEach(sc => {
+        const c = ensureCustom(sc.code, sc.units, sc.title, sc.tag);
+        setUnits(c.id, sc.units);
+        setTitle(c.id, sc.title);
+        ids.push(c.id);
+      });
+      state.schedule[term] = ids;
+      state.timetable[term] = SEED_TEST_SESSIONS.map((r, i) => {
+        const c = findCourse(r[0]);
+        const range = parseRange(r[2]);
+        return { id: 'S_seed_' + i + '_' + Date.now().toString(36), courseId: c.id, day: r[1], start: range.start, end: range.end, location: r[3], kind: r[4], section: r[5] };
+      });
+      state.selectedTerm = term;
+      clog(`✓ Seeded ${term}: ${ids.length} courses + ${SEED_TEST_SESSIONS.length} weekly sessions. Syncing to cloud…`, 'ok');
+      cmdLs(term);
+    }
+
+    // Console keyboard wiring
+    document.getElementById('console-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runConsoleInput(); }
+      else if (e.key === 'ArrowUp' && !e.shiftKey && document.getElementById('console-input').value.indexOf('\n') < 0) {
+        e.preventDefault();
+        if (consoleHistory.length) { consoleHistIdx = Math.max(0, consoleHistIdx - 1); document.getElementById('console-input').value = consoleHistory[consoleHistIdx] || ''; }
+      } else if (e.key === 'ArrowDown' && !e.shiftKey && document.getElementById('console-input').value.indexOf('\n') < 0) {
+        e.preventDefault();
+        if (consoleHistory.length) { consoleHistIdx = Math.min(consoleHistory.length, consoleHistIdx + 1); document.getElementById('console-input').value = consoleHistory[consoleHistIdx] || ''; }
+      }
+    });
+    document.addEventListener('keydown', e => {
+      const tag = (e.target.tagName || '').toLowerCase();
+      const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); toggleConsole(); }
+      else if (e.key === '`' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); toggleConsole(); }
+      else if (e.key === 'Escape' && !document.getElementById('console-panel').classList.contains('hidden')) toggleConsole(false);
+    });
 
     // Boot: show local state immediately, then overwrite with the latest cloud plan
     function applyPlanData(parsed) {
