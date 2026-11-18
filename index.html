@@ -47,6 +47,8 @@
       .term-card { break-inside: avoid; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
     }
   </style>
+  <!-- Supabase SDK for cloud sync -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
 
@@ -75,6 +77,12 @@
 
       <!-- Stream Selector & Global Controls -->
       <div class="flex flex-wrap items-center gap-2 no-print">
+        <!-- Cloud Sync Status -->
+        <span id="cloud-status" title="Supabase cloud sync status"
+          style="font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; white-space: nowrap;">
+          ⏳ 連線中...
+        </span>
+
         <!-- Stream Selector -->
         <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
           <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-2 hidden sm:inline">Stream:</span>
@@ -523,6 +531,75 @@
     const STORAGE_KEY = 'cuhk_seem_planner_2026_v1';
 
     /* ==========================================================================
+       1b. SUPABASE CLOUD SYNC (auto background save + load on boot)
+    ========================================================================== */
+    const SUPABASE_URL = 'https://dcpoaozthiidkfcybkve.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_C2c8Rg-ovZ63ckFKoGi5kQ_FW8rWftN';
+    const PLAN_ID = 'wilson_seem_plan';
+    // Guard: if the CDN script failed to load (offline), keep the app fully usable locally
+    const db = (window.supabase && window.supabase.createClient)
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+      : null;
+
+    function setCloudStatus(text, color = '#94a3b8') {
+      const el = document.getElementById('cloud-status');
+      if (el) {
+        el.textContent = text;
+        el.style.color = color;
+      }
+    }
+
+    // Debounced cloud save: uploads 0.8s after the last change to avoid request spam while dragging
+    let saveTimer = null;
+    function saveToCloud(stateObj) {
+      if (!db) { setCloudStatus('⚠️ 離線模式', '#f87171'); return; }
+      setCloudStatus('⏳ 同步中...', '#fbbf24');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        try {
+          const { error } = await db
+            .from('study_plans')
+            .upsert({
+              id: PLAN_ID,
+              plan_data: stateObj,
+              updated_at: new Date().toISOString()
+            });
+          if (error) {
+            console.error('Supabase save failed:', error);
+            setCloudStatus('⚠️ 雲端儲存失敗', '#f87171');
+          } else {
+            setCloudStatus('☁️ 已同步至雲端', '#34d399');
+          }
+        } catch (err) {
+          console.error('Supabase save failed:', err);
+          setCloudStatus('⚠️ 雲端儲存失敗', '#f87171');
+        }
+      }, 800);
+    }
+
+    async function loadFromCloud() {
+      if (!db) { setCloudStatus('⚠️ 離線模式', '#f87171'); return null; }
+      try {
+        const { data, error } = await db
+          .from('study_plans')
+          .select('plan_data')
+          .eq('id', PLAN_ID)
+          .maybeSingle();
+        if (error) {
+          console.error('Supabase load failed:', error);
+          setCloudStatus('⚠️ 離線模式', '#f87171');
+          return null;
+        }
+        setCloudStatus('☁️ 已同步至雲端', '#34d399');
+        return data ? data.plan_data : null;
+      } catch (err) {
+        console.error('Supabase load failed:', err);
+        setCloudStatus('⚠️ 離線模式', '#f87171');
+        return null;
+      }
+    }
+
+    /* ==========================================================================
        2. APPLICATION STATE & PERSISTENCE
     ========================================================================== */
     let state = {
@@ -569,6 +646,7 @@
       } catch (e) {
         console.warn('Could not save to localStorage', e);
       }
+      saveToCloud(state); // auto background sync to Supabase
     }
 
     function getAllCourses() {
@@ -1364,9 +1442,29 @@
       toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
     }
 
-    // Boot
-    loadState();
-    renderAll();
+    // Boot: show local state immediately, then overwrite with the latest cloud plan
+    function applyPlanData(parsed) {
+      state = {
+        ...state,
+        ...parsed,
+        schedule: { ...initEmptySchedule(), ...(parsed.schedule || {}) },
+        customCourses: Array.isArray(parsed.customCourses) ? parsed.customCourses : [],
+        unitOverrides: (parsed.unitOverrides && typeof parsed.unitOverrides === 'object') ? parsed.unitOverrides : {},
+      };
+    }
+
+    async function initApp() {
+      loadState();
+      renderAll();
+      const cloudData = await loadFromCloud();
+      if (cloudData && typeof cloudData === 'object' && cloudData.schedule) {
+        applyPlanData(cloudData);
+        // Cache cloud plan locally without re-triggering a cloud upload
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+        renderAll();
+      }
+    }
+    initApp();
   </script>
 </body>
 </html>
