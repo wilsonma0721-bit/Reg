@@ -2319,7 +2319,7 @@
     /* ==========================================================================
        9. WEB COMMAND CONSOLE — batch manage courses / timetable, auto cloud sync
     ========================================================================== */
-    const CONSOLE_CHIPS = ['help', 'ls', 'seed', 'order Y1T1 ', 'time add Y1T1 ', 'edit ', 'add Y1T1 ', 'rm Y1T1 '];
+    const CONSOLE_CHIPS = ['help', 'ls', 'catalog', 'catalog unassigned', 'seed', 'order Y1T1 ', 'time add Y1T1 ', 'edit ', 'add Y1T1 ', 'rm Y1T1 '];
     let consoleHistory = [];
     let consoleHistIdx = -1;
     let consoleHeight = 220;
@@ -2465,6 +2465,9 @@
     const CONSOLE_HELP = [
       'help                                  show this list',
       'ls [term] | view [term]               list courses + Mon–Fri sessions (default: selected term)',
+      'catalog [filter] | ls catalog         list whole Course Bank: code | units | title | tag | term/Unassigned',
+      '                                      filters: unassigned / assigned / custom / official / FP|FD|REQ|ELEC|EXTRA / text',
+      '                                      e.g. catalog unassigned • catalog custom',
       'add <term> <code> <units> "<title>" [tag]',
       '                                      e.g. add Y1T1 CSCI1510 3 "Computer Principles and C++" "CS Minor"',
       'edit <code> [units=N] [title="…"] [term=T]',
@@ -2489,7 +2492,10 @@
       switch (cmd) {
         case 'help': clog(CONSOLE_HELP, 'info'); return;
         case 'clear': document.getElementById('console-log').innerHTML = ''; return;
-        case 'ls': case 'view': return cmdLs(tk[1]);
+        case 'ls': case 'view':
+          if ((tk[1] || '').toLowerCase() === 'catalog') return cmdCatalog(tk[2]);
+          return cmdLs(tk[1]);
+        case 'catalog': return cmdCatalog(tk[1]);
         case 'add': return cmdAdd(tk);
         case 'edit': return cmdEdit(tk);
         case 'rm': return cmdRm(tk);
@@ -2516,6 +2522,43 @@
         const c = getCourseById(s.courseId);
         clog(`${i + 1}. ${TT_DAYS[s.day]} ${s.start}-${s.end} | ${c ? c.code.split('/')[0].trim() : s.courseId}${s.section ? ' [' + s.section + ']' : ''} | ${s.kind || 'Lecture'} | ${s.location || '—'}`, 'info');
       });
+    }
+
+    function cmdCatalog(filterArg) {
+      const filter = (filterArg || 'all').toLowerCase();
+      const customIds = new Set(state.customCourses.map(c => c.id));
+      let list = getAllCourses();
+      let label = 'all courses';
+      if (filter === 'unassigned') {
+        list = list.filter(c => !findCourseTerm(c.id));
+        label = 'unassigned courses';
+      } else if (filter === 'assigned' || filter === 'scheduled') {
+        list = list.filter(c => findCourseTerm(c.id));
+        label = 'assigned courses';
+      } else if (filter === 'custom') {
+        list = list.filter(c => customIds.has(c.id));
+        label = 'custom courses';
+      } else if (filter === 'official' || filter === 'catalog') {
+        list = list.filter(c => !customIds.has(c.id));
+        label = 'official catalog courses';
+      } else if (filter !== 'all') {
+        // treat as category filter: FP / FD / REQ / ELEC / EXTRA (or label text match)
+        const up = filter.toUpperCase();
+        const byCat = list.filter(c => c.cat === up);
+        if (byCat.length) { list = byCat; label = `category ${up}`; }
+        else {
+          list = list.filter(c => (c.sub || '').toLowerCase().includes(filter) || c.code.toLowerCase().includes(filter) || c.title.toLowerCase().includes(filter));
+          label = `match "${filterArg}"`;
+        }
+      }
+      clog(`— Course Bank • ${label} • ${list.length} course${list.length === 1 ? '' : 's'} —`, 'info');
+      list.forEach((c, i) => {
+        const term = findCourseTerm(c.id);
+        const status = term ? term : 'Unassigned';
+        const kind = customIds.has(c.id) ? 'custom' : 'official';
+        clog(`${i + 1}. ${c.code} | ${c.units}u | ${c.title} | ${c.sub || c.cat} | ${status} | ${kind}`, 'info');
+      });
+      if (list.length === 0) clog('(no courses match this filter)', 'info');
     }
 
     function cmdAdd(tk) {
